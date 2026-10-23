@@ -89,6 +89,9 @@ td.selm{outline:2px solid var(--accent);outline-offset:-2px}
 .vtb{border:0;background:var(--surface);padding:3px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
 .vtb+.vtb{border-left:1px solid var(--line)}
 .vtb.on{background:var(--ink);color:var(--surface);font-weight:600}
+.rcs{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.rc{font-size:12px;padding:1px 6px;border:1px solid var(--line2);border-radius:4px;background:var(--surface2);display:inline-flex;align-items:center;gap:3px}
+.rc .x{padding:0;font-size:13px;line-height:1}
 td .dl{display:block;font-size:10px;line-height:1.1;font-weight:600;letter-spacing:.02em}
 .dl .p{color:var(--ok)} .dl .m{color:var(--accent)} .dl .pl{color:var(--j-sales)}
 td.mis{box-shadow:inset 3px 0 0 var(--warn)}
@@ -216,7 +219,7 @@ const hist = {}, dirty = new Set(), saving = new Set(), timers = {};
 let sb = null, me = null, chan = null;
 
 function blank(){ return {version:1, startMonth:"2024-11", endMonth:"2029-12", window:6, target:0.04, specialUntil:"2026-04", specialBase:45, actual:{}, baseMonth:"2026-10", baseCount:0, adjust:{}, events:[], notes:{}}; }
-function norm(d){ const b = blank(); d = Object.assign(b, d || {}); d.actual = d.actual || {}; d.adjust = d.adjust || {}; d.noHire = Array.isArray(d.noHire) ? d.noHire : []; d.events = Array.isArray(d.events) ? d.events : []; return d; }
+function norm(d){ const b = blank(); d = Object.assign(b, d || {}); d.actual = d.actual || {}; d.adjust = d.adjust || {}; d.noHire = Array.isArray(d.noHire) ? d.noHire : []; d.rosterExtra = Array.isArray(d.rosterExtra) ? d.rosterExtra : []; d.events = Array.isArray(d.events) ? d.events : []; return d; }
 const D = () => S.scen[S.cur] && S.scen[S.cur].data;
 const list = () => Object.entries(S.scen).sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0) || (a[1].updatedAt || 0) - (b[1].updatedAt || 0));
 
@@ -308,7 +311,7 @@ function render(){
   const r = HC.calc(d), c = S.cmp && S.scen[S.cmp] && S.cmp !== S.cur ? HC.calc(S.scen[S.cmp].data) : null;
   const keep = {x: window.scrollX, y: window.scrollY, tbl: $(".tblwrap") ? $(".tblwrap").scrollLeft : 0};
   const ae = document.activeElement, aeId = ae && ae.id, selStart = ae && ae.selectionStart;
-  $("#main").innerHTML = cardsHtml(d, r) + chartHtml(d, r, c) + `<div class="lower"><div class="panel">${tableHtml(d, r, c)}</div><div class="side">${monthHtml(d, r)}${eventsHtml(d)}${settingsHtml(d)}</div></div>`;
+  $("#main").innerHTML = cardsHtml(d, r) + chartHtml(d, r, c) + `<div class="lower"><div class="panel">${tableHtml(d, r, c)}</div><div class="side">${monthHtml(d, r)}${rosterHtml(d, r)}${eventsHtml(d)}${settingsHtml(d)}</div></div>`;
   if ($(".tblwrap")) $(".tblwrap").scrollLeft = keep.tbl;
   window.scrollTo(keep.x, keep.y);
   if (aeId && $("#" + aeId)) { const el = $("#" + aeId); el.focus(); try { if (selStart != null) el.setSelectionRange(selStart, selStart); } catch (e) {} }
@@ -421,6 +424,33 @@ function parseDateLoose(x){
   const ymS = m[1] + "-" + String(m[2]).padStart(2, "0"); if (!m[3]) return ymS;
   const dd = ymS + "-" + String(m[3]).padStart(2, "0"); return dd <= HC.lastDay(ymS) ? dd : null;
 }
+let ORG = null;
+async function loadOrg(){
+  try {
+    const {data, error} = await sb.from("org_scenarios").select("name,data,updated_at"); if (error || !data || !data.length) { ORG = {err: true}; render(); return; }
+    const row = data.find(x => /현행/.test(x.name || "")) || data[0];
+    const units = {}; (row.data.units || []).forEach(u => units[u.id] = u);
+    const top = id => { let u = units[id], prev = u; while (u && u.parent && units[u.parent] && units[u.parent].parent) { prev = units[u.parent]; u = prev; } return u; };
+    const people = (row.data.people || []).filter(p => !p.vacant && p.unit && units[p.unit]).map(p => { const t = top(p.unit); return {name: p.name, rank: p.rank || "", unit: units[p.unit].name, group: t && t.parent ? t.name : "대표이사"}; });
+    ORG = {name: row.name, people};
+  } catch (e) { ORG = {err: true}; }
+  render();
+}
+function rosterHtml(d, r){
+  if (!ORG) return "";
+  if (ORG.err) return `<div class="panel"><details><summary>이번 달 명단</summary><p class="mini muted">조직도 자료를 불러오지 못했습니다.</p></details></div>`;
+  const ex = d.rosterExtra || [], total = ORG.people.length + ex.length, base = r.cnt[d.baseMonth], diff = total - base;
+  const groups = {}; ORG.people.forEach(p => (groups[p.group] = groups[p.group] || []).push(p));
+  const chip = p => `<span class="rc" title="${esc([p.rank, p.unit].filter(Boolean).join(" · "))}">${esc(p.name)}</span>`;
+  return `<div class="panel"><details id="d-roster"${S.open["d-roster"] ? " open" : ""}><summary>이번 달 명단 <span class="mini" style="color:${diff ? "var(--accent)" : "var(--muted)"}">(${ym(d.baseMonth)} · ${total}명${diff ? " · 기준월 인원 " + base + "명과 " + (diff > 0 ? "+" : "") + diff + "명 차이" : " · 기준월 인원과 일치"})</span></summary>
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+    ${Object.entries(groups).map(([g, ps]) => `<div><div class="mini"><b>${esc(g)}</b> <span class="muted">${ps.length}명</span></div><div class="rcs">${ps.map(chip).join("")}</div></div>`).join("")}
+    <div><div class="mini"><b>조직도 밖 인원</b> <span class="muted">${ex.length}명 · 조직도에는 없지만 건강보험 가입자</span></div>
+      <div class="rcs">${ex.map((p, i) => `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${p.unit ? ` <span class="muted">${esc(p.unit)}</span>` : ""}${S.readOnly ? "" : ` <button class="x" data-act="rx-del" data-i="${i}" aria-label="빼기" title="빼기">×</button>`}</span>`).join("") || `<span class="muted mini">없음</span>`}</div>
+      ${S.readOnly ? "" : `<div class="row" style="margin-top:6px"><input id="f-rxname" placeholder="이름" style="flex:1 1 70px"><input id="f-rxunit" placeholder="소속 (선택)" style="flex:1 1 90px"><button class="btn sm" data-act="rx-add">추가</button></div>`}</div>
+    <p class="muted mini" style="margin:0">조직도 ‘${esc(ORG.name)}’ 안 기준 (채용예정·미배치 제외)</p>
+    </div></details></div>`;
+}
 function eventsHtml(d){
   const evs = d.events.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   const isUp = e => e.date > HC.lastDay(d.baseMonth) || (e.type === "out" && e.date === HC.lastDay(d.baseMonth));
@@ -481,6 +511,8 @@ function act(name, el){
       S.editEv = null; mutate(d => { const e = d.events.find(x => x.id === id); if (e) Object.assign(e, v); return "기록을 고쳤습니다."; }); break;
     }
     case "ev-del": { if (S.readOnly) return; const id = el.dataset.id; mutate(d => { d.events = d.events.filter(x => x.id !== id); }); break; }
+    case "rx-add": { const n = $("#f-rxname").value.trim(), u = $("#f-rxunit").value.trim(); if (!n) { $("#f-rxname").focus(); return; } mutate(d => { d.rosterExtra = (d.rosterExtra || []).concat([{name: n, unit: u}]); }); break; }
+    case "rx-del": { const i = +el.dataset.i; mutate(d => { d.rosterExtra = (d.rosterExtra || []).filter((_, k) => k !== i); }); break; }
     case "nohire": { const m = el.dataset.m; mutate(d => { const set = new Set(d.noHire || []); set.add(m); d.noHire = [...set].sort(); return ym(m) + "은 채용하지 않는 것으로 하고 다시 계산했습니다."; }); break; }
     case "nohire-off": { const m = el.dataset.m; mutate(d => { d.noHire = (d.noHire || []).filter(x => x !== m); return ym(m) + "을 다시 채용 가능한 달로 바꿨습니다."; }); break; }
     case "plan-clear": { if (!armed(el, "한 번 더 누르면 빼기")) return; mutate(d => { const n = Object.keys(d.adjust).filter(m => m > d.baseMonth).length; Object.keys(d.adjust).forEach(m => { if (m > d.baseMonth) delete d.adjust[m]; }); return "계획 " + n + "건을 모두 뺐습니다. 되돌리기(↶)로 복구할 수 있습니다."; }); break; }
@@ -627,6 +659,7 @@ async function afterLogin(user){
   if (me1) { setStatus("서버에 연결하지 못했습니다. 새로고침해 주세요.", true); return; }
   if (!mem) { setStatus("이 계정에는 권한이 없습니다.", true); S.mode = "db"; render(); return; }
   S.readOnly = mem.role !== "editor";
+  loadOrg();
   const {data: rows, error} = await sb.from("hc_scenarios").select("*");
   if (error) { S.mode = "db"; render(); setStatus(/relation|does not exist|schema cache/i.test(error.message) ? "저장 표가 아직 없습니다. Supabase에서 설정 SQL을 실행해 주세요." : "자료를 불러오지 못했습니다.", true); return; }
   rows.forEach(r => { if (!dirty.has(r.id) && !saving.has(r.id)) S.scen[r.id] = rowTo(r); });
