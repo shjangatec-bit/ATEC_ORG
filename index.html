@@ -685,7 +685,7 @@ function editHead(el){
 }
 function editPerson(el){
   const d = D(), p = d.people.find(x => x.id === el.dataset.pid);
-  startEdit(el, p.vacant ? "" : p.name, v => mutate(d => { const x = d.people.find(y => y.id === p.id); x.name = v; if (x.vacant && v !== "채용예정") x.vacant = false; }));
+  startEdit(el, p.vacant ? "" : p.name, v => mutate(d => { const x = d.people.find(y => y.id === p.id); x.name = v; if (x.vacant && !/채용/.test(v)) x.vacant = false; }));
 }
 document.addEventListener("dblclick", e => {
   if (S.readOnly || !D()) return;
