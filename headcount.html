@@ -102,7 +102,8 @@ td.mis{box-shadow:inset 3px 0 0 var(--warn)}
 .side{display:flex;flex-direction:column;gap:16px}
 .fld{display:grid;grid-template-columns:82px minmax(0,1fr);gap:6px;align-items:center;margin-bottom:7px}
 .fld>label{color:var(--muted);font-size:12px}
-.fld input,.fld select{width:100%}
+.fld input,.fld select{width:100%;min-width:0;box-sizing:border-box}
+.fld input[type=checkbox]{width:auto;flex:none;margin:0}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .row>input,.row>select{flex:1;min-width:0}
 .ev{display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line2);font-size:12.5px}
@@ -398,7 +399,7 @@ function monthHtml(d, r){
   const kd = kindOf(d, k), evs = (evsByMonth(d)[k] || []).slice().sort((a, b) => a.date.localeCompare(b.date)), mm = recon(d, r)[k];
   const editActual = k < d.baseMonth ? `<div class="fld"><label for="f-act">인원</label><input id="f-act" type="number" min="0" value="${d.actual[k] ?? ""}"></div>`
     : k === d.baseMonth ? `<div class="fld"><label for="f-base">기준월 인원</label><input id="f-base" type="number" min="0" value="${d.baseCount}"></div>`
-    : `<div class="fld"><label>채용</label><label class="mini" style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" id="f-nohire"${(d.noHire || []).includes(k) ? " checked" : ""}> 이 달은 채용하지 않음</label></div><div class="fld"><label for="f-adj">계획</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}" placeholder="예: 2 또는 -1"></div>`;
+    : `<div class="fld"><label>채용</label><label class="mini" style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" id="f-nohire"${(d.noHire || []).includes(k) ? " checked" : ""}> 채용 없음</label></div><div class="fld"><label for="f-adj">계획</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}" placeholder="예: 2 또는 -1"></div>`;
   return `<div class="panel"><h3><span>${ymK(k)}</span><button class="btn sm" data-act="desel">닫기</button></h3>
     <p class="mini" style="margin:0 0 8px">월말 <b>${r.cnt[k] ?? "–"}명</b>${kd === "act" ? "" : " (예상)"} · 6개월 평균 ${fmtN(r.avg[k])}명 · 증가율 <b style="${r.rate[k] != null && r.rate[k] < d.target - 1e-12 && k > d.specialUntil ? "color:var(--accent)" : ""}">${pct(r.rate[k])}</b></p>
     ${k > d.baseMonth && r.cnt[HC.addM(k, -1)] != null ? (() => { const ev = evs, i = ev.filter(e => e.type === "in").length, o = ev.filter(e => e.type === "out").length, a = +d.adjust[k] || 0; return `<p class="mini" style="margin:-4px 0 8px">계산: 전월 ${r.cnt[HC.addM(k, -1)]}명${i ? ` <span style="color:var(--ok)">+${i}(입사)</span>` : ""}${o ? ` <span style="color:var(--accent)">−${o}(퇴사)</span>` : ""}${a ? ` <span style="color:var(--j-sales)">${a > 0 ? "+" : "−"}${Math.abs(a)}(계획)</span>` : ""} = <b>${r.cnt[k]}명</b></p>`; })() : ""}
