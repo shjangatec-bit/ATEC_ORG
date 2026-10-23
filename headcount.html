@@ -204,7 +204,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const pct = (v, dg = 2) => v == null ? "–" : (v * 100).toFixed(dg) + "%";
+const pct = (v, dg = 2) => { if (v == null) return "–"; const f = Math.pow(10, dg), x = Math.floor(v * 100 * f + 1e-9) / f; return x.toFixed(dg) + "%"; };
 const fmtN = v => v == null ? "–" : (Math.round(v * 100) / 100).toString();
 const ym = k => { const [y, m] = k.split("-"); return y + "." + m; };
 const ymK = k => { const [y, m] = k.split("-"); return y + "년 " + (+m) + "월"; };
@@ -369,7 +369,7 @@ function tableHtml(d, r, c){
     return `<td class="c k-${kd}${mm ? " mis" : ""}${selc(k)}" data-m="${k}" title="${esc(tip)}">${v ?? ""}${dl}</td>`;
   };
   const avgCell = k => `<td class="c${selc(k)}" data-m="${k}">${r.avg[k] == null ? "" : fmtN(r.avg[k])}</td>`;
-  const rateCell = k => { const v = r.rate[k]; if (v == null) return `<td></td>`; const sp = k <= d.specialUntil, fail = !sp && v < d.target; const cv = c && c.rate[k] != null ? " · 비교안 " + pct(c.rate[k]) : ""; return `<td class="c${sp ? " sp" : ""}${fail ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + (sp ? " · 설립 초기 예외 산식(" + d.specialBase + "명 기준)" : " · 전년 같은 달 대비") + cv)}">${pct(v, 1)}</td>`; };
+  const rateCell = k => { const v = r.rate[k]; if (v == null) return `<td></td>`; const sp = k <= d.specialUntil, fail = !sp && v < d.target; const cv = c && c.rate[k] != null ? " · 비교안 " + pct(c.rate[k]) : ""; return `<td class="c${sp ? " sp" : ""}${fail ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + (sp ? " · 설립 초기 예외 산식(" + d.specialBase + "명 기준)" : " · 전년 같은 달 대비") + cv)}">${pct(v, 2)}</td>`; };
   const V = [["cnt","월말 인원"],["need","필요 인원"],["avg","6개월 평균"],["rate","증가율"]], on = v => S.views.includes(v);
   const mp = minPlan(d);
   const needCell = k => { if (k <= d.baseMonth || mp.need[k] == null) return "<td></td>"; const nd = mp.need[k], hv = r.cnt[k], gap = nd - hv; return `<td class="c${gap > 0 ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + " · 4% 유지에 필요한 월말 인원 " + nd + "명 · 지금 예상 " + hv + "명" + (gap > 0 ? " · " + gap + "명 부족" : ""))}">${nd}${gap > 0 ? `<span class="dl"><span class="m">부족 ${gap}</span></span>` : ""}</td>`; };
