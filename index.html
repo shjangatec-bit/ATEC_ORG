@@ -356,6 +356,7 @@ async function flush(id){
   } catch (e) {
     if (e && e.code === "invalid_argument" && S.mode === "db" && !String(e.message||"").match(/256|size|deep/i)) { S.readOnly = true; setStatus("보기 전용 — 저장 권한이 없습니다", true); }
     else if (e && e.code === "quota_exceeded") setStatus("저장 공간이 가득 찼습니다. 쓰지 않는 안을 지워 주세요.", true);
+    else if (e && e.code === "unauthenticated") { dirty.add(id); setStatus("로그인이 만료되었습니다. 다시 로그인하면 저장됩니다.", true); if (typeof showLogin === "function") showLogin("로그인이 만료되었습니다. 다시 로그인해 주세요."); }
     else { dirty.add(id); setStatus("저장하지 못했습니다. 잠시 후 다시 시도합니다.", true); setTimeout(() => flush(id), 3000); }
   } finally {
     saving.delete(id);
@@ -478,7 +479,7 @@ function chipHtml(d, p, u, diff){
   const tip = [p.rank, p.job, from ? "이전 소속: " + from : "", p.note, "더블클릭해서 이름 수정"].filter(Boolean).join(" · ");
   const mv = from || (p.flags || []).includes("move");
   const mk = marks(p).replace("↔", "");
-  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${p.id}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${esc(pname(p))}</span>`;
+  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${esc(pname(p))}</span>`;
 }
 function unitHtml(d, u, lv, diff){
   const {n, v} = count(d, u.id);
@@ -487,7 +488,7 @@ function unitHtml(d, u, lv, diff){
   const cls = ["unit", "lv-" + lv, big ? "big" : "small", STCLS[u.status] || "", S.sel && S.sel.k === "u" && S.sel.id === u.id ? "sel" : ""].filter(Boolean).join(" ");
   let ppl = S.showPeople ? inUnit(d, u.id) : [];
   ppl = ppl.slice().sort((a,b) => (b.id === u.headId) - (a.id === u.headId));
-  return `<div class="${cls}" data-uid="${u.id}" draggable="${lv !== "root" && !S.readOnly}" tabindex="0">
+  return `<div class="${cls}" data-uid="${esc(u.id)}" draggable="${lv !== "root" && !S.readOnly}" tabindex="0">
     ${tag ? `<span class="dtag dtag-${tag.k}">${tag.t}</span>` : ""}
     <div class="band"><div class="u-top"><span class="u-name" title="더블클릭해서 수정">${esc(u.name)}</span><span class="u-cnt">${n}명${v ? ` <i>채용${v}</i>` : ""}</span></div>
     <div class="u-head" title="더블클릭해서 수정">${esc(headLabel(d, u))}</div></div>
@@ -611,10 +612,10 @@ function tablePane(d){
 
 /* ---------- actions ---------- */
 function select(k, id){
-  if (S.view) return;
+  if (S.view || (S.readOnly && id)) return;
   S.sel = id ? {k, id} : null; S.tab = id ? "edit" : "diff"; render({keepChart:true, keepTray:true});
   document.querySelectorAll("#scroll .sel, #tray .sel").forEach(x => x.classList.remove("sel"));
-  if (id) document.querySelectorAll(k === "u" ? `#scroll .unit[data-uid="${id}"]` : `#scroll [data-pid="${id}"], #tray [data-pid="${id}"]`).forEach(x => x.classList.add("sel"));
+  if (id) document.querySelectorAll(k === "u" ? `#scroll .unit[data-uid="${CSS.escape(id)}"]` : `#scroll [data-pid="${CSS.escape(id)}"], #tray [data-pid="${CSS.escape(id)}"]`).forEach(x => x.classList.add("sel"));
 }
 
 /* ---------- 상자 안에서 바로 고치기 ---------- */
@@ -901,8 +902,11 @@ const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const ID_DOMAIN = "atec.local";
 // ▲ 설정 끝
 let sb = null, me = null;
+function stable(o){ return JSON.stringify(o, (k, v) => v && typeof v === "object" && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => (a[x] = v[x], a), {}) : v); }
+let chan = null;
+function isAuthErr(error){ return /jwt|token|expired|not authenticated|401/i.test((error && (error.message || error.code)) || ""); }
 function rowToScen(r){ return {name: r.name || "", note: r.note || "", order: r.sort_order ?? 0, updatedAt: Date.parse(r.updated_at) || 0, data: normalize(r.data)}; }
-function sbErr(error){ return {code: /permission|policy|row-level|denied/i.test(error.message || "") ? "invalid_argument" : "unavailable", message: error.message}; }
+function sbErr(error){ return {code: isAuthErr(error) ? "unauthenticated" : /permission|policy|row-level|denied/i.test(error.message || "") ? "invalid_argument" : "unavailable", message: error.message}; }
 function makeCol(){
   return { doc: id => ({
     set: async sc => { const {error} = await sb.from("org_scenarios").upsert({id, name: sc.name || "", note: sc.note || "", sort_order: sc.order ?? 0, data: sc.data, updated_at: new Date().toISOString(), updated_by: me.email}); if (error) throw sbErr(error); },
@@ -923,21 +927,25 @@ $("#login-form").addEventListener("submit", async e => {
 $("#b-logout").onclick = async () => { try { await sb.auth.signOut(); } catch (e) {} location.reload(); };
 async function afterLogin(user){
   me = user; $("#b-logout").hidden = false;
-  const { data: mem } = await sb.from("org_members").select("role").eq("email", user.email).maybeSingle();
+  const { data: mem, error: memErr } = await sb.from("org_members").select("role").eq("email", user.email).maybeSingle();
+  if (memErr) { setStatus("서버에 연결하지 못했습니다. 잠시 후 새로고침해 주세요.", true); return; }
   if (!mem) { S.mode = "db"; S.readOnly = true; render({}); setStatus("이 계정에는 조직도 권한이 없습니다. 관리자에게 요청하세요.", true); return; }
   S.readOnly = mem.role !== "editor"; document.body.classList.toggle("ro", S.readOnly);
   col = makeCol();
   const { data: rows, error } = await sb.from("org_scenarios").select("*");
   if (error) { setStatus("자료를 불러오지 못했습니다. 새로고침해 주세요.", true); return; }
-  S.mode = "db"; rows.forEach(r => { S.scen[r.id] = rowToScen(r); });
+  S.mode = "db"; rows.forEach(r => { if (!dirty.has(r.id) && !saving.has(r.id)) S.scen[r.id] = rowToScen(r); });
+  dirty.forEach(id => setTimeout(() => flush(id), 100));
   if (S.readOnly) setStatus("보기 전용 · " + user.email.split("@")[0]); else idleStatus();
   render({});
-  sb.channel("org-scenarios").on("postgres_changes", {event: "*", schema: "public", table: "org_scenarios"}, p => {
+  if (chan) return;
+  chan = sb.channel("org-scenarios").on("postgres_changes", {event: "*", schema: "public", table: "org_scenarios"}, p => {
     const id = (p.new && p.new.id) || (p.old && p.old.id);
     if (!id || dirty.has(id) || saving.has(id)) return;
     if (p.eventType === "DELETE") { if (!S.scen[id]) return; delete S.scen[id]; }
-    else { const nx = rowToScen(p.new); if (S.scen[id] && S.scen[id].name === nx.name && JSON.stringify(S.scen[id].data) === JSON.stringify(nx.data)) return; S.scen[id] = nx; }
+    else { const nx = rowToScen(p.new); if (S.scen[id] && S.scen[id].name === nx.name && stable(S.scen[id].data) === stable(nx.data)) return; S.scen[id] = nx; }
     fixSel();
+    if (document.querySelector(".inl")) return;
     const ae = document.activeElement, inPane = ae && ae.closest && ae.closest("#pane") && ae.matches("input,textarea");
     render(inPane ? {keepPanel: true} : {});
   }).subscribe();
