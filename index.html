@@ -591,6 +591,7 @@ function unitPane(d, u){
   ${mvHtml}
   <div class="row"><input id="f-pnew" placeholder="이름"><select id="f-pjob" style="flex:0 0 72px">${JOBS.map(j => `<option>${j}</option>`).join("")}</select><button class="btn sm" data-act="padd">인원 추가</button></div>
   <div class="row" style="margin-top:6px"><button class="btn sm" data-act="vadd">채용예정 1명 추가</button></div>
+  ${(() => { const o = otherPeople(d); return o.length ? `<div class="row" style="margin-top:6px"><select id="f-pother"><option value="">다른 안에만 있는 인원 ${o.length}명</option>${o.map(x => `<option value="${esc(x.p.id)}">${esc(x.p.name)}${x.p.rank ? " · " + esc(x.p.rank) : ""} (${esc(x.from)})</option>`).join("")}</select><button class="btn sm" data-act="padd-other">가져오기</button></div>` : ""; })()}
   <h4>조직</h4>
   <div class="row"><input id="f-cnew" placeholder="하위 조직명 (예: 기획Part)"><button class="btn sm" data-act="cadd">하위 조직 추가</button></div>
   ${isRoot ? "" : `<div class="row" style="margin-top:6px"><select id="f-merge"><option value="">통합할 조직 선택</option>${unitOptions(d, subtree(d, u.id), null)}</select><button class="btn sm" data-act="merge">로 통합</button></div>
@@ -669,6 +670,11 @@ function tablePane(d){
 }
 
 /* ---------- actions ---------- */
+function otherPeople(d){
+  const have = new Set(d.people.map(p => p.id)), seen = new Set(), out = [];
+  scenList().forEach(([sid, sc]) => { if (sid === S.cur) return; sc.data.people.forEach(p => { if (p.vacant || have.has(p.id) || seen.has(p.id)) return; seen.add(p.id); out.push({p, from: sc.name + " · " + unitName(sc.data, p.unit)}); }); });
+  return out.sort((a, b) => a.p.name.localeCompare(b.p.name, "ko"));
+}
 function select(k, id){
   if (S.view || (S.readOnly && id)) return;
   S.sel = id ? {k, id} : null; S.tab = id ? "edit" : "diff"; render({keepChart:true, keepTray:true});
@@ -796,6 +802,9 @@ function handleAct(act, el){
     case "open-import": openImport(); break;
     case "ord": { const dir = +el.dataset.d; mutate(d => { const sib = kids(d, sel.parent); const i = sib.findIndex(x => x.id === sel.id), j = i + dir; if (j < 0 || j >= sib.length) return; [sib[i], sib[j]] = [sib[j], sib[i]]; sib.forEach((x, k) => x.order = k); }); break; }
     case "padd": { const inp = $("#f-pnew"); const name = inp && inp.value.trim(); if (!name) { inp && inp.focus(); return; } const job = $("#f-pjob").value; mutate(d => { d.people.push({id: uid("p-"), name, rank:"", job, flags:[], note:"", vacant:false, unit: sel.id}); }); setTimeout(() => { const i = $("#f-pnew"); i && i.focus(); }, 0); break; }
+    case "padd-other": { const pid = $("#f-pother") && $("#f-pother").value; if (!pid) { toast("가져올 인원을 먼저 고르세요."); return; }
+      const src = otherPeople(d).find(x => x.p.id === pid); if (!src) return;
+      mutate(d => { const c = clone(src.p); c.unit = sel.id; c.flags = (c.flags || []).filter(f => f !== "promo" && f !== "newlead"); d.people.push(c); return c.name + "님을 가져왔습니다. 직급·연차가 이 안 기준에 맞는지 확인하세요."; }); break; }
     case "vadd": mutate(d => { d.people.push({id: uid("v-"), name:"채용예정", rank:"", job: $("#f-pjob") ? $("#f-pjob").value : "사무", flags:[], note:"", vacant:true, unit: sel.id}); }); break;
     case "cadd": { const name = ($("#f-cnew").value || "").trim() || "새 팀"; const id = uid("u-"); mutate(d => { d.units.push({id, name, type: inferType(name, "팀"), status:"신설", parent: sel.id, order: kids(d, sel.id).length, headId:null, headText:"", note:""}); }); S.sel = {k:"u", id}; render({}); break; }
     case "merge": { const t = $("#f-merge").value; if (!t) { toast("통합할 조직을 먼저 고르세요."); return; } const tn = unitName(d, t), sn = sel.name;
