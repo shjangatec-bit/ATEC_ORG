@@ -656,7 +656,7 @@ function missingRankHtml(d){
 function rankCompHtml(d){
   const root = rootOf(d), groups = [];
   const direct = d.people.filter(p => p.unit === root.id);
-  if (direct.length) groups.push({name: root.name + " 직속", ppl: direct});
+  if (direct.length) groups.push({name: root.name, ppl: direct});
   kids(d, root.id).forEach(u => { const ids = new Set(subtree(d, u.id)); groups.push({name: u.name, ppl: d.people.filter(p => ids.has(p.unit))}); });
   const all = d.people.filter(p => p.unit);
   const used = new Set(all.filter(p => !p.vacant && p.rank).map(p => p.rank.trim()));
