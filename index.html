@@ -119,7 +119,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
 .mvlist b{color:var(--chg)}
 body.viewer #scen,body.viewer #sname,body.viewer #b-dup,body.viewer #b-new,body.viewer #b-del,body.viewer #b-undo,body.viewer #b-redo,body.viewer #b-exp,body.viewer #b-imp,body.viewer #b-pub,body.viewer .sep,body.viewer #tray,body.viewer .tab[data-tab="edit"]{display:none}
 #vtitle{font-weight:600;font-size:14px}
-body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
+body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-rank,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
 body.viewer .lg-review{display:none}
 #vtitle small{font-weight:400;color:var(--muted);margin-left:8px;font-size:12px}
 .pubinfo{background:var(--surface2);border-radius:6px;padding:8px 10px;font-size:12.5px}
@@ -207,6 +207,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <input id="q" placeholder="이름 찾기" aria-label="이름 찾기" style="width:110px">
       <button class="btn" id="b-exp">내보내기</button>
       <button class="btn" id="b-imp">가져오기</button>
+      <button class="btn" id="b-rank">직급 넣기</button>
       <button class="btn primary" id="b-pub" hidden>경영진 공개</button>
       <button class="btn" id="b-logout" hidden>로그아웃</button>
     </div>
@@ -479,7 +480,7 @@ function chipHtml(d, p, u, diff){
   const q = S.q.trim();
   const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
-  const tip = [p.rank, p.job, from ? "이전 소속: " + from : "", p.note, "더블클릭해서 이름 수정"].filter(Boolean).join(" · ");
+  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, from ? "이전 소속: " + from : "", p.note, "더블클릭해서 이름 수정"].filter(Boolean).join(" · ");
   const mv = from || (p.flags || []).includes("move");
   const mk = marks(p).replace("↔", "");
   return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${esc(pname(p))}</span>`;
@@ -586,6 +587,7 @@ function personPane(d, p){
   return `<h3><span>${esc(pname(p))}</span><button class="btn sm" data-act="desel">닫기</button></h3>
   <div class="fld"><label for="f-pname">이름</label><input id="f-pname" value="${esc(p.name)}"></div>
   <div class="fld"><label for="f-prank">직급</label><input id="f-prank" list="ranks" value="${esc(p.rank)}" placeholder="예: 책임"><datalist id="ranks">${RANKS.map(r => `<option value="${r}">`).join("")}</datalist></div>
+  <div class="fld"><label for="f-pry">직급 연차</label><input id="f-pry" inputmode="numeric" value="${esc(p.rankYears || "")}" placeholder="예: 3 (3년차)"></div>
   <div class="fld"><label for="f-pjob2">직군</label><select id="f-pjob2">${JOBS.map(j => `<option${j === p.job ? " selected" : ""}>${j}</option>`).join("")}</select></div>
   <div class="fld"><label for="f-punit">소속</label><select id="f-punit">${unitOptions(d, [], p.unit, true)}</select></div>
   ${(() => { const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null; const b = B && B.people.find(x => x.id === p.id); if (!B) return ""; if (!b) return `<p class="mvlist muted">‘${esc(S.scen[S.base].name)}’에는 없는 인원입니다.</p>`; return b.unit === p.unit ? "" : `<p class="mvlist"><b>↔ 부서이동</b> · ${esc(unitName(B, b.unit))} → ${esc(unitName(d, p.unit))} <span class="muted">(‘${esc(S.scen[S.base].name)}’ 대비)</span></p>`; })()}
@@ -763,6 +765,8 @@ function handleAct(act, el){
       copy(lines.join("\n"), "요약표를 복사했습니다. 엑셀에 붙여넣으세요."); break; }
     case "copydiff": { const df = diffNow(); if (!df) return; const t = [S.view ? `[${S.pub.baseName}] → [${S.pub.name}]` : `[${S.scen[S.base].name}] → [${S.scen[S.cur].name}]`, "", "■ 조직 변경", ...df.units.map(x => "- " + x.t), "", "■ 인원 변동", ...df.people.map(x => "- " + x.t)]; copy(t.join("\n"), "변경사항을 복사했습니다."); break; }
     case "do-import": doImport(); break;
+    case "rank-preview": rankPreview(); break;
+    case "rank-apply": rankApply(); break;
     case "pub-do": publishCurrent(!!($("#m-pubdiff") && $("#m-pubdiff").checked)); break;
     case "pub-preview": startPreview(); break;
     case "pub-stop": if (!arm(el, "pubstop", "한 번 더 누르면 공개 중지")) return; pubRef.delete().then(() => { S.pubOwn = null; $("#modal-root").innerHTML = ""; toast("공개를 중지했습니다. 경영진 화면은 빈 화면이 됩니다."); }, () => toast("공개를 중지하지 못했습니다.")); break;
@@ -791,6 +795,7 @@ document.addEventListener("input", e => {
   else if (u && id === "f-uheadt") mutate(d => { d.units.find(x => x.id === u.id).headText = t.value; }, "uht" + u.id, live);
   else if (u && id === "f-unote") mutate(d => { d.units.find(x => x.id === u.id).note = t.value; }, "unote" + u.id, live);
   else if (p && id === "f-pname") mutate(d => { d.people.find(x => x.id === p.id).name = t.value; }, "pname" + p.id, live);
+  else if (p && id === "f-pry") mutate(d => { d.people.find(x => x.id === p.id).rankYears = t.value.replace(/[^0-9]/g, ""); }, "pry" + p.id, live);
   else if (p && id === "f-prank") mutate(d => { d.people.find(x => x.id === p.id).rank = t.value; }, "prank" + p.id, live);
   else if (p && id === "f-pnote") mutate(d => { d.people.find(x => x.id === p.id).note = t.value; }, "pnote" + p.id, live);
 });
@@ -829,6 +834,79 @@ $("#b-exp").onclick = () => {
   <div class="row"><button class="btn primary" data-act="exp-file">JSON 파일 저장</button><button class="btn" data-act="exp-copy">JSON 복사</button><button class="btn" data-act="close-modal" style="margin-left:auto">닫기</button></div></div></div>`;
 };
 $("#b-imp").onclick = openImport;
+$("#b-rank").onclick = openRank;
+const RANK_ORDER = ["사원","주임","선임","대리","과장","책임","차장","부장","수석","이사","상무","전무","부사장","사장","대표이사"];
+const rankLv = r => RANK_ORDER.indexOf(String(r || "").trim());
+const nkey = n => String(n || "").replace(/[\s()（）]/g, "");
+let rankPlan = null;
+function openRank(){
+  if (!D() || S.readOnly) return;
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(640px,100%)"><b>직급 넣기</b>
+  <p class="muted mini" style="margin:0">엑셀에서 <b>이름 · 직급연차</b> 두 칸을 복사해 붙여 넣으세요. 예: <code>홍길동	책임3년차</code></p>
+  <textarea id="m-rank" placeholder="이름	직급연차"></textarea>
+  <label class="mini"><input type="checkbox" id="m-rank-all" checked> 모든 안에 적용 (끄면 지금 보고 있는 안에만)</label>
+  <p class="muted mini" style="margin:0">이미 더 높은 직급이 들어 있거나 ▲승진 표시가 있는 사람은 그대로 둡니다. 목록에 없는 사람도 그대로 둡니다.</p>
+  <div id="m-rank-out"></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">닫기</button><button class="btn" data-act="rank-preview">미리보기</button><button class="btn primary" data-act="rank-apply" id="m-rank-go" disabled>적용</button></div></div></div>`;
+  setTimeout(() => $("#m-rank").focus(), 0);
+}
+function parseRanks(text){
+  const out = [];
+  String(text || "").split(/\r?\n/).forEach(line => {
+    const t = line.trim(); if (!t) return;
+    const cols = t.split(/\t|\s{2,}|,/).map(x => x.trim()).filter(Boolean);
+    let name, rest;
+    if (cols.length >= 2) { name = cols[0]; rest = cols.slice(1).join(" "); }
+    else { const m = t.match(/^(\S+)\s+(.+)$/); if (!m) return; name = m[1]; rest = m[2]; }
+    const m2 = rest.replace(/\s+/g, "").match(/^(.+?)(\d+)?년?차?$/);
+    if (!m2) return;
+    out.push({name, key: nkey(name), rank: m2[1], years: m2[2] || ""});
+  });
+  return out;
+}
+function rankPreview(){
+  const list = parseRanks($("#m-rank").value);
+  if (!list.length) { $("#m-rank-out").innerHTML = `<p class="mini" style="color:var(--accent)">읽을 수 있는 줄이 없습니다. 이름과 직급 사이를 탭이나 띄어쓰기로 나눠 주세요.</p>`; $("#m-rank-go").disabled = true; return; }
+  const ids = $("#m-rank-all").checked ? scenList().map(x => x[0]) : [S.cur];
+  const plan = {ids, changes: {}, rows: []}; const matched = new Set();
+  const lookup = {}; list.forEach(x => lookup[x.key] = x);
+  ids.forEach(sid => {
+    const d = S.scen[sid].data; plan.changes[sid] = [];
+    d.people.forEach(p => {
+      if (p.vacant) return;
+      const x = lookup[nkey(p.name)]; if (!x) return;
+      matched.add(x.key);
+      const cur = (p.rank || "").trim();
+      let act;
+      if ((p.flags || []).includes("promo") && cur) act = "유지(▲승진)";
+      else if (cur && rankLv(cur) > rankLv(x.rank) && rankLv(x.rank) >= 0) act = "유지(승진 직급)";
+      else if (cur === x.rank && String(p.rankYears || "") === x.years) act = "같음";
+      else { act = "변경"; plan.changes[sid].push({pid: p.id, rank: x.rank, years: x.years}); }
+      plan.rows.push({sc: S.scen[sid].name, name: p.name, cur: cur || "-", nw: x.rank + (x.years ? " " + x.years + "년차" : ""), act});
+    });
+  });
+  rankPlan = plan;
+  const nChg = plan.rows.filter(r => r.act === "변경").length;
+  const keep = plan.rows.filter(r => r.act.startsWith("유지"));
+  const miss = list.filter(x => !matched.has(x.key)).map(x => x.name);
+  $("#m-rank-out").innerHTML = `<p class="mini"><b>변경 ${nChg}건</b> · 유지 ${keep.length}건 · 조직도에 없는 이름 ${miss.length}명</p>
+   ${keep.length ? `<p class="mini muted" style="margin:0 0 4px">그대로 둔 사람: ${keep.map(r => esc(r.name) + "(" + esc(r.cur) + ", " + esc(r.sc) + ")").join(", ")}</p>` : ""}
+   ${miss.length ? `<p class="mini muted" style="margin:0 0 4px">조직도에 없어 건너뛴 이름: ${miss.map(esc).join(", ")}</p>` : ""}
+   <div class="tblwrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>안</th><th>이름</th><th>현재</th><th>넣을 직급</th><th>처리</th></tr></thead><tbody>
+   ${plan.rows.map(r => `<tr><td>${esc(r.sc)}</td><td>${esc(r.name)}</td><td>${esc(r.cur)}</td><td>${esc(r.nw)}</td><td>${esc(r.act)}</td></tr>`).join("")}</tbody></table></div>`;
+  $("#m-rank-go").disabled = !nChg;
+}
+function rankApply(){
+  if (!rankPlan || S.readOnly) return;
+  let n = 0;
+  rankPlan.ids.forEach(sid => {
+    const ch = rankPlan.changes[sid]; if (!ch || !ch.length || !S.scen[sid]) return;
+    const h = H(sid); h.u.push(JSON.stringify(S.scen[sid].data)); if (h.u.length > 80) h.u.shift(); h.r = []; h.key = null;
+    ch.forEach(c => { const p = S.scen[sid].data.people.find(x => x.id === c.pid); if (p) { p.rank = c.rank; p.rankYears = c.years; n++; } });
+    markDirty(sid);
+  });
+  rankPlan = null; $("#modal-root").innerHTML = ""; render({}); toast("직급 " + n + "건을 넣었습니다. 되돌리기로 안별 취소할 수 있습니다.");
+}
 $("#b-endprev").onclick = endPreview;
 function fmtDate(t){ if (!t) return ""; const d = new Date(t); return d.getFullYear() + "." + String(d.getMonth()+1).padStart(2,"0") + "." + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
 function normPub(p){ if (p && p.data) p.data = normalize(p.data); return p; }
