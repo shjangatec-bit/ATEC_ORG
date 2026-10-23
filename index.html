@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
-<title>조직도 샌드박스</title>
+<title>조직 운영계획</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -190,7 +190,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
 
 <div class="app">
   <header>
-    <div class="brand">조직도 샌드박스</div>
+    <div class="brand">조직 운영계획</div>
     <a class="btn" id="b-hc" href="./headcount.html" style="text-decoration:none;color:inherit">고용증가율</a>
     <span id="vtitle" hidden></span>
     <button class="btn primary" id="b-endprev" hidden>미리보기 끝내기</button>
@@ -254,7 +254,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
   </main>
 </div>
 <div id="login" class="modal" hidden><form class="box" id="login-form" style="max-width:340px">
-  <b style="font-size:15px">조직도 샌드박스</b><p class="muted mini" style="margin:0">회사에서 받은 아이디로 로그인하세요.</p>
+  <b style="font-size:15px">조직 운영계획</b><p class="muted mini" style="margin:0">회사에서 받은 아이디로 로그인하세요.</p>
   <input id="l-id" placeholder="아이디" autocomplete="username"><input id="l-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
   <p id="l-err" class="mini" style="color:var(--accent);margin:0;min-height:1.2em"></p>
   <button class="btn primary" type="submit">로그인</button></form></div>
@@ -1090,7 +1090,7 @@ function bootViewer(){
 }
 function exportJson(){ return JSON.stringify({app:"org-sandbox", version:1, exportedAt:new Date().toISOString(), scenarios:S.scen}, null, 1); }
 async function exportFile(){
-  const dt = new Date(), f = "조직도샌드박스_" + dt.getFullYear() + String(dt.getMonth()+1).padStart(2,"0") + String(dt.getDate()).padStart(2,"0") + ".json";
+  const dt = new Date(), f = "조직운영계획_" + dt.getFullYear() + String(dt.getMonth()+1).padStart(2,"0") + String(dt.getDate()).padStart(2,"0") + ".json";
   if (!downloads) { try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([exportJson()], {type:"application/json"})); a.download = f; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); $("#modal-root").innerHTML = ""; toast("파일을 저장했습니다. 다운로드 폴더를 확인하세요."); } catch (e) { toast("파일을 저장하지 못했습니다. ‘JSON 복사’를 이용하세요."); } return; }
   try { await downloads.save({filename: f, data: exportJson()}); $("#modal-root").innerHTML = ""; } catch (e) { toast("파일을 저장하지 못했습니다. ‘JSON 복사’를 이용하세요."); }
 }
