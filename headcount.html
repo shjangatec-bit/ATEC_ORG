@@ -210,9 +210,9 @@ const ym = k => { const [y, m] = k.split("-"); return y + "." + m; };
 const ymK = k => { const [y, m] = k.split("-"); return y + "년 " + (+m) + "월"; };
 const stable = o => JSON.stringify(o, (k, v) => v && typeof v === "object" && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => (a[x] = v[x], a), {}) : v);
 let pref = {}; try { pref = JSON.parse(localStorage.getItem("hc.pref") || "{}") || {}; } catch (e) {}
-const savePref = () => { try { localStorage.setItem("hc.pref", JSON.stringify({cur: S.cur, cmp: S.cmp, view: S.view})); } catch (e) {} };
+const savePref = () => { try { localStorage.setItem("hc.pref", JSON.stringify({cur: S.cur, cmp: S.cmp, views: S.views})); } catch (e) {} };
 
-const S = {view: pref.view || "rate", scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
+const S = {views: Array.isArray(pref.views) && pref.views.length ? pref.views : ["rate"], scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
 const hist = {}, dirty = new Set(), saving = new Set(), timers = {};
 let sb = null, me = null, chan = null;
 
@@ -323,7 +323,7 @@ function cardsHtml(d, r){
 function chartHtml(d, r, c){
   const ks = r.months.filter(k => k > d.specialUntil && r.rate[k] != null);
   if (ks.length < 2) return "";
-  const W = 1100, Hh = 260, L = 44, R = 12, T = 14, B = 34;
+  const box = document.querySelector("main"), W = Math.max(640, Math.min(1500, (box ? box.clientWidth : 1200) - 60)), Hh = 170, L = 44, R = 12, T = 12, B = 28;
   const vals = ks.map(k => r.rate[k]).concat(c ? ks.map(k => c.rate[k]).filter(v => v != null) : []).concat([d.target]);
   const maxV = Math.max(0.08, Math.ceil(Math.max(...vals) * 50) / 50), minV = Math.min(0, Math.floor(Math.min(...vals) * 50) / 50);
   const x = i => L + i * (W - L - R) / (ks.length - 1), y = v => T + (maxV - v) / (maxV - minV) * (Hh - T - B);
@@ -336,7 +336,7 @@ function chartHtml(d, r, c){
   g += `<polyline fill="none" stroke="var(--j-sales)" stroke-width="2" points="${ks.map((k, i) => x(i) + "," + y(r.rate[k])).join(" ")}"/>`;
   ks.forEach((k, i) => { const v = r.rate[k], bad = v < d.target; g += `<circle cx="${x(i)}" cy="${y(v)}" r="${bad ? 4 : 2.5}" fill="${bad ? "var(--accent)" : "var(--j-sales)"}" data-m="${k}" style="cursor:pointer"><title>${ym(k)} · ${pct(v)} · 월말 ${r.cnt[k]}명</title></circle>`; });
   return `<div class="panel"><h3><span>월별 고용증가율 <span class="muted mini">(정규 산식 ${ym(HC.addM(d.specialUntil, 1))}부터)</span></span><span class="legend"><span><span class="sw" style="background:var(--j-sales)"></span>${esc(S.scen[S.cur].name)}</span>${c ? `<span><span class="sw" style="background:var(--muted)"></span>${esc(S.scen[S.cmp].name)} (비교)</span>` : ""}<span style="color:var(--accent)">● ${pct(d.target, 0)} 미만</span></span></h3>
-    <div class="chartwrap"><svg viewBox="0 0 ${W} ${Hh}" style="width:100%;min-width:640px;height:auto;display:block" role="img" aria-label="월별 고용증가율 그래프">${g}</svg></div></div>`;
+    <div class="chartwrap"><svg viewBox="0 0 ${W} ${Hh}" width="${W}" height="${Hh}" style="display:block" role="img" aria-label="월별 고용증가율 그래프">${g}</svg></div></div>`;
 }
 function tableHtml(d, r, c){
   const years = []; for (let y = +d.startMonth.slice(0, 4); y <= +d.endMonth.slice(0, 4); y++) years.push(y);
@@ -355,9 +355,9 @@ function tableHtml(d, r, c){
   };
   const avgCell = k => `<td class="c${selc(k)}" data-m="${k}">${r.avg[k] == null ? "" : fmtN(r.avg[k])}</td>`;
   const rateCell = k => { const v = r.rate[k]; if (v == null) return `<td></td>`; const sp = k <= d.specialUntil, fail = !sp && v < d.target; const cv = c && c.rate[k] != null ? " · 비교안 " + pct(c.rate[k]) : ""; return `<td class="c${sp ? " sp" : ""}${fail ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + (sp ? " · 설립 초기 예외 산식(" + d.specialBase + "명 기준)" : " · 전년 같은 달 대비") + cv)}">${pct(v, 1)}</td>`; };
-  const V = [["cnt","월말 인원"],["avg","6개월 평균"],["rate","증가율"],["all","전체"]];
-  const tabs = `<span class="vt" role="tablist">${V.map(([v, t]) => `<button class="vtb${S.view === v ? " on" : ""}" data-act="view" data-v="${v}" role="tab" aria-selected="${S.view === v}">${t}</button>`).join("")}</span>`;
-  const body = (S.view === "cnt" || S.view === "all" ? sec("① 월말 인원 (말일 재직, 건강보험 가입자)", cntCell) : "") + (S.view === "avg" || S.view === "all" ? sec("② 직전 " + d.window + "개월 평균", avgCell) : "") + (S.view === "rate" || S.view === "all" ? sec("③ 고용증가율", rateCell) : "");
+  const V = [["cnt","월말 인원"],["avg","6개월 평균"],["rate","증가율"]], on = v => S.views.includes(v);
+  const tabs = `<span class="vt" role="group" aria-label="표에 보일 항목">${V.map(([v, t]) => `<button class="vtb${on(v) ? " on" : ""}" data-act="view" data-v="${v}" aria-pressed="${on(v)}">${on(v) ? "✓ " : ""}${t}</button>`).join("")}</span>`;
+  const body = (on("cnt") ? sec("① 월말 인원 (말일 재직, 건강보험 가입자)", cntCell) : "") + (on("avg") ? sec("② 직전 " + d.window + "개월 평균", avgCell) : "") + (on("rate") ? sec("③ 고용증가율", rateCell) : "");
   return `<h3><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">월별 표 ${tabs}</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="sw evt"></span>입퇴사 예정</span><span><span class="sw plan"></span>계획 보정</span>${Object.keys(mis).length ? `<span style="color:var(--warn)">▎기록 불일치 ${Object.keys(mis).length}개월</span>` : ""}<span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
   <div class="tblwrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
   <p class="muted mini" style="margin:8px 0 0">칸을 누르면 오른쪽에서 그 달의 인원·입퇴사를 고칠 수 있습니다.</p>`;
@@ -423,7 +423,7 @@ function act(name, el){
     case "close-modal": $("#modal-root").innerHTML = ""; break;
     case "do-import": doImport(); break;
     case "exp-file": exportFile(); break;
-    case "view": S.view = el.dataset.v; savePref(); render(); break;
+    case "view": { const v = el.dataset.v; if (S.views.includes(v)) { if (S.views.length > 1) S.views = S.views.filter(x => x !== v); else { toast("하나 이상은 골라야 합니다."); return; } } else S.views = ["cnt","avg","rate"].filter(x => x === v || S.views.includes(x)); savePref(); render(); break; }
     case "bulk-open": openBulk(); break;
     case "bulk-apply": bulkApply(); break;
     case "ev-add": {
@@ -592,6 +592,7 @@ async function boot(){
   const {data} = await sb.auth.getSession();
   if (data && data.session) afterLogin(data.session.user); else { setStatus("로그인이 필요합니다"); showLogin(); }
 }
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (D()) render(); }, 200); });
 boot();
 })();
 </script>
