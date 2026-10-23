@@ -65,7 +65,7 @@ select,input[type=text],input:not([type]),textarea{border:1px solid var(--line);
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
 .rk{font-size:10.5px;color:var(--muted);margin-right:2px}
 .chip.hit .rk{color:inherit}
-body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
+body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
 body.present main{grid-template-columns:minmax(0,1fr)}
 body.present .canvas{height:auto}
 .comp td.n,.comp th.n{min-width:30px}
@@ -191,6 +191,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
 <div class="app">
   <header>
     <div class="brand">조직도 샌드박스</div>
+    <a class="btn" id="b-hc" href="./headcount.html" style="text-decoration:none;color:inherit">고용증가율</a>
     <span id="vtitle" hidden></span>
     <button class="btn primary" id="b-endprev" hidden>미리보기 끝내기</button>
     <button class="btn primary" id="b-endpresent" hidden>회의 보기 끝내기</button>
