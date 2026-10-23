@@ -86,6 +86,10 @@ td.k-plan{background:color-mix(in srgb,var(--j-sales) 14%,transparent)}
 td.fail{color:var(--accent);font-weight:700}
 td.sp{color:var(--muted);font-style:italic}
 td.selm{outline:2px solid var(--accent);outline-offset:-2px}
+td .dl{display:block;font-size:10px;line-height:1.1;font-weight:600;letter-spacing:.02em}
+.dl .p{color:var(--ok)} .dl .m{color:var(--accent)}
+td.mis{box-shadow:inset 3px 0 0 var(--warn)}
+.warnbox{background:color-mix(in srgb,var(--warn) 12%,transparent);border-left:3px solid var(--warn);padding:6px 8px;border-radius:4px;font-size:12px;margin:0 0 8px}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .sw{display:inline-block;width:12px;height:10px;border-radius:2px;border:1px solid var(--line);vertical-align:-1px;margin-right:4px}
 .sw.evt{background:var(--chg-soft)} .sw.plan{background:color-mix(in srgb,var(--j-sales) 14%,transparent)}
@@ -162,9 +166,9 @@ const HC = (() => {
     let n = d.baseCount;
     Object.entries(d.adjust || {}).forEach(([m, v]) => { if (m > d.baseMonth && m <= k) n += +v || 0; });
     (d.events || []).forEach(e => {
-      if (!e.date || e.date <= baseEnd) return;
-      if (e.type === "in" && e.date <= kEnd) n += 1;
-      if (e.type === "out" && e.date < kEnd) n -= 1;
+      if (!e.date) return;
+      if (e.type === "in" && e.date > baseEnd && e.date <= kEnd) n += 1;
+      if (e.type === "out" && e.date >= baseEnd && e.date < kEnd) n -= 1;
     });
     return n;
   }
@@ -246,6 +250,23 @@ function kindOf(d, k){
   const ev = d.events.some(e => e.date && HC.monthOf(e.date) === k && e.date > HC.lastDay(d.baseMonth));
   if (ev) return "evt"; if (d.adjust[k]) return "plan"; return "proj";
 }
+function effMonth(e){
+  if (!e.date) return null; const m = HC.monthOf(e.date);
+  if (e.type === "out" && e.date.length === 10 && e.date === HC.lastDay(m)) return HC.addM(m, 1);
+  return m;
+}
+function evsByMonth(d){ const o = {}; d.events.forEach(e => { const m = effMonth(e); if (!m) return; (o[m] = o[m] || []).push(e); }); return o; }
+function recon(d, r){
+  const by = evsByMonth(d), months = Object.keys(by).filter(m => m <= d.baseMonth).sort(); if (!months.length) return {};
+  const from = months[0], out = {};
+  r.months.forEach(k => {
+    if (k < from || k > d.baseMonth) return; const p = HC.addM(k, -1); if (r.cnt[p] == null || r.cnt[k] == null) return;
+    const delta = r.cnt[k] - r.cnt[p], rec = (by[k] || []).reduce((a, e) => a + (e.type === "in" ? 1 : -1), 0);
+    if (delta !== rec) out[k] = {delta, rec};
+  });
+  return out;
+}
+const dstr = e => { const s = (e.date || "").replace(/-/g, "."); return e.type === "out" && e.date && e.date.length === 10 && e.date === HC.lastDay(HC.monthOf(e.date)) ? s + " (다음 달부터 제외)" : s; };
 function firstFail(d, r){ return r.months.find(k => k > d.baseMonth && k > d.specialUntil && r.rate[k] != null && r.rate[k] < d.target) || null; }
 function suggest(d, r){
   const F = firstFail(d, r); if (!F) return {F: null, opts: []};
@@ -319,41 +340,51 @@ function tableHtml(d, r, c){
   const head = `<tr><th style="text-align:left">연도</th>${M.map(m => `<th>${+m}월</th>`).join("")}</tr>`;
   const sec = (title, fn) => `<tr class="sec"><td colspan="13">${title}</td></tr>` + years.map(y => `<tr><td class="yr">${y}</td>${M.map(m => { const k = y + "-" + m; if (k < d.startMonth || k > d.endMonth) return "<td></td>"; return fn(k); }).join("")}</tr>`).join("");
   const selc = k => S.sel === k ? " selm" : "";
-  const cntCell = k => { const kd = kindOf(d, k), v = r.cnt[k]; const tip = [ymK(k), v + "명", kd === "act" ? "실적" : kd === "evt" ? "입퇴사 예정 반영" : kd === "plan" ? "계획 보정 " + (d.adjust[k] > 0 ? "+" : "") + d.adjust[k] : "예상"].join(" · "); return `<td class="c k-${kd}${selc(k)}" data-m="${k}" title="${esc(tip)}">${v ?? ""}</td>`; };
+  const by = evsByMonth(d), mis = recon(d, r);
+  const cntCell = k => {
+    const kd = kindOf(d, k), v = r.cnt[k], evs = by[k] || [], ins = evs.filter(e => e.type === "in"), outs = evs.filter(e => e.type === "out"), mm = mis[k];
+    const tip = [ymK(k) + " · " + (v ?? "–") + "명 · " + (kd === "act" ? "실적" : kd === "evt" ? "입퇴사 예정 반영" : kd === "plan" ? "계획 보정 " + (d.adjust[k] > 0 ? "+" : "") + d.adjust[k] : "예상")]
+      .concat(ins.length ? ["입사: " + ins.map(e => e.name || "이름 없음").join(", ")] : []).concat(outs.length ? ["퇴사: " + outs.map(e => e.name || "이름 없음").join(", ")] : [])
+      .concat(mm ? ["⚠ 인원 변화 " + (mm.delta > 0 ? "+" : "") + mm.delta + " / 기록 " + (mm.rec > 0 ? "+" : "") + mm.rec + " → 기록 확인 필요"] : []).join("\n");
+    const dl = evs.length ? `<span class="dl">${ins.length ? `<span class="p">+${ins.length}</span>` : ""}${ins.length && outs.length ? " " : ""}${outs.length ? `<span class="m">−${outs.length}</span>` : ""}</span>` : "";
+    return `<td class="c k-${kd}${mm ? " mis" : ""}${selc(k)}" data-m="${k}" title="${esc(tip)}">${v ?? ""}${dl}</td>`;
+  };
   const avgCell = k => `<td class="c${selc(k)}" data-m="${k}">${r.avg[k] == null ? "" : fmtN(r.avg[k])}</td>`;
   const rateCell = k => { const v = r.rate[k]; if (v == null) return `<td></td>`; const sp = k <= d.specialUntil, fail = !sp && v < d.target; const cv = c && c.rate[k] != null ? " · 비교안 " + pct(c.rate[k]) : ""; return `<td class="c${sp ? " sp" : ""}${fail ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + (sp ? " · 설립 초기 예외 산식(" + d.specialBase + "명 기준)" : " · 전년 같은 달 대비") + cv)}">${pct(v, 1)}</td>`; };
-  return `<h3><span>월별 표</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="sw evt"></span>입퇴사 예정</span><span><span class="sw plan"></span>계획 보정</span><span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
+  return `<h3><span>월별 표</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="sw evt"></span>입퇴사 예정</span><span><span class="sw plan"></span>계획 보정</span>${Object.keys(mis).length ? `<span style="color:var(--warn)">▎기록 불일치 ${Object.keys(mis).length}개월</span>` : ""}<span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
   <div class="tblwrap"><table><thead>${head}</thead><tbody>${sec("① 월말 인원 (말일 재직, 건강보험 가입자)", cntCell)}${sec("② 직전 " + d.window + "개월 평균", avgCell)}${sec("③ 고용증가율", rateCell)}</tbody></table></div>
   <p class="muted mini" style="margin:8px 0 0">칸을 누르면 오른쪽에서 그 달의 인원·입퇴사를 고칠 수 있습니다.</p>`;
 }
 function monthHtml(d, r){
   const k = S.sel; if (!k) { const s = suggest(d, r); return `<div class="panel"><h3>유지 방안</h3>${s.F ? `<p class="mini" style="margin:0 0 6px"><b style="color:var(--accent)">${ym(s.F)}</b>부터 ${pct(d.target, 0)} 미달이 예상됩니다. ${ym(s.F)} ~ ${ym(s.horizon)}을 모두 맞추려면 (추가 인원을 계속 유지한다는 전제):</p><ul class="sugg mini" style="margin:0;padding-left:18px">${s.opts.map(o => `<li><b>${ym(o.H)}</b> 말까지 <b>+${o.n}명</b> <button class="btn sm" data-act="apply-sugg" data-h="${o.H}" data-n="${o.n}">계획에 넣어 보기</button></li>`).join("") || "<li>8명 이내로는 맞추기 어렵습니다.</li>"}</ul>` : `<p class="mini muted" style="margin:0">${ym(d.endMonth)}까지 매월 ${pct(d.target, 0)} 이상 유지됩니다.</p>`}<p class="muted mini" style="margin:8px 0 0">표의 칸이나 그래프의 점을 누르면 그 달을 고칠 수 있습니다.</p></div>`; }
-  const kd = kindOf(d, k), evs = d.events.filter(e => e.date && HC.monthOf(e.date) === k).sort((a, b) => a.date.localeCompare(b.date));
+  const kd = kindOf(d, k), evs = (evsByMonth(d)[k] || []).slice().sort((a, b) => a.date.localeCompare(b.date)), mm = recon(d, r)[k];
   const editActual = k < d.baseMonth ? `<div class="fld"><label for="f-act">실적 인원</label><input id="f-act" type="number" min="0" value="${d.actual[k] ?? ""}"></div>`
     : k === d.baseMonth ? `<div class="fld"><label for="f-base">기준월 인원</label><input id="f-base" type="number" min="0" value="${d.baseCount}"></div>`
     : `<div class="fld"><label for="f-adj">계획 보정</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}" placeholder="예: 2 또는 -1"></div><p class="muted mini" style="margin:-2px 0 8px">이 달부터 이후 모든 달에 더하거나 뺍니다. 이름 없이 숫자로만 계획할 때 씁니다.</p>`;
   return `<div class="panel"><h3><span>${ymK(k)}</span><button class="btn sm" data-act="desel">닫기</button></h3>
     <p class="mini" style="margin:0 0 8px">월말 <b>${r.cnt[k] ?? "–"}명</b> (${kd === "act" ? "실적" : "예상"}) · 6개월 평균 ${fmtN(r.avg[k])}명 · 증가율 <b style="${r.rate[k] != null && r.rate[k] < d.target && k > d.specialUntil ? "color:var(--accent)" : ""}">${pct(r.rate[k])}</b></p>
+    ${mm ? `<div class="warnbox">전월 대비 인원 변화는 <b>${mm.delta > 0 ? "+" : ""}${mm.delta}명</b>인데 기록된 입퇴사는 <b>${mm.rec > 0 ? "+" : ""}${mm.rec}명</b>입니다. 빠진 기록이 있거나 실적 숫자를 확인해 주세요.</div>` : ""}
     ${editActual}
-    <div class="mini" style="margin-top:4px"><b>이 달 입퇴사</b> ${evs.length ? "" : `<span class="muted">없음</span>`}</div>
+    <div class="mini" style="margin-top:4px"><b>이 달 인원 변동</b> ${evs.length ? "" : `<span class="muted">없음</span>`}</div>
     ${evs.map(e => evRow(d, e)).join("")}
     ${k > d.baseMonth ? `<div class="row" style="margin-top:8px"><button class="btn sm" data-act="quick-in" data-m="${k}">이 달 입사 예정 추가</button><button class="btn sm" data-act="quick-out" data-m="${k}">이 달 퇴사 예정 추가</button></div>` : ""}
     <div class="fld" style="margin-top:10px"><label for="f-note">메모</label><input id="f-note" value="${esc(d.notes[k] || "")}" placeholder="이 달 메모"></div>
   </div>`;
 }
 function evRow(d, e){
-  const past = e.date && e.date <= HC.lastDay(d.baseMonth);
-  return `<div class="ev${past ? " past" : ""}" title="${past ? "기준월 이전이라 기준 인원에 이미 포함된 기록" : ""}"><span class="tg ${e.type}">${e.type === "in" ? "입사" : "퇴사"}</span><span class="d">${esc((e.date || "").replace(/-/g, "."))}</span><span class="nm">${esc(e.name || "(이름 없음)")}${e.note ? ` <span class="muted">· ${esc(e.note)}</span>` : ""}</span>${S.readOnly ? "" : `<button class="x" data-act="ev-del" data-id="${esc(e.id)}" aria-label="삭제" title="삭제">×</button>`}</div>`;
+  const past = e.date && e.date <= HC.lastDay(d.baseMonth) && !(e.type === "out" && e.date === HC.lastDay(d.baseMonth));
+  return `<div class="ev${past ? " past" : ""}" title="${past ? "기준월 이전이라 기준 인원에 이미 포함된 기록" : ""}"><span class="tg ${e.type}">${e.type === "in" ? "입사" : "퇴사"}</span><span class="d" style="width:auto;min-width:64px">${esc(dstr(e))}</span><span class="nm">${esc(e.name || "(이름 없음)")}${e.note ? ` <span class="muted">· ${esc(e.note)}</span>` : ""}</span>${S.readOnly ? "" : `<button class="x" data-act="ev-del" data-id="${esc(e.id)}" aria-label="삭제" title="삭제">×</button>`}</div>`;
 }
 function eventsHtml(d){
   const evs = d.events.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  const up = evs.filter(e => e.date > HC.lastDay(d.baseMonth)), past = evs.filter(e => !(e.date > HC.lastDay(d.baseMonth)));
-  return `<div class="panel"><h3>입퇴사 예정</h3>
+  const isUp = e => e.date > HC.lastDay(d.baseMonth) || (e.type === "out" && e.date === HC.lastDay(d.baseMonth));
+  const up = evs.filter(isUp), past = evs.filter(e => !isUp(e));
+  return `<div class="panel"><h3><span>입퇴사 기록</span>${S.readOnly ? "" : `<button class="btn sm" data-act="bulk-open">여러 건 붙여넣기</button>`}</h3>
     ${S.readOnly ? "" : `<div class="row"><select id="f-etype" style="flex:0 0 70px"><option value="in">입사</option><option value="out">퇴사</option></select><input id="f-ename" placeholder="이름" style="flex:1 1 80px"><input id="f-edate" type="date" style="flex:1 1 120px"></div>
     <div class="row" style="margin-top:6px"><input id="f-enote" placeholder="메모 (선택)"><button class="btn sm primary" data-act="ev-add">추가</button></div>
     <p class="muted mini" style="margin:6px 0 4px">퇴사는 말일 재직 기준이라, 말일에 퇴사하면 그 달까지 포함되고 다음 달부터 빠집니다.</p>`}
-    ${up.map(e => evRow(d, e)).join("") || `<p class="muted mini">예정된 입퇴사가 없습니다.</p>`}
-    ${past.length ? `<details style="margin-top:8px"><summary class="mini muted">지난 기록 ${past.length}건</summary>${past.map(e => evRow(d, e)).join("")}</details>` : ""}
+    <div class="mini" style="margin:6px 0 2px"><b>예정</b></div>${up.map(e => evRow(d, e)).join("") || `<p class="muted mini">예정된 입퇴사가 없습니다.</p>`}
+    ${past.length ? `<details style="margin-top:8px" ${past.length <= 15 ? "open" : ""}><summary class="mini"><b>지난 기록 ${past.length}건</b> <span class="muted">(기록용 · 실적 숫자는 그대로)</span></summary>${past.map(e => evRow(d, e)).join("")}</details>` : ""}
   </div>`;
 }
 function settingsHtml(d){
@@ -385,6 +416,8 @@ function act(name, el){
     case "close-modal": $("#modal-root").innerHTML = ""; break;
     case "do-import": doImport(); break;
     case "exp-file": exportFile(); break;
+    case "bulk-open": openBulk(); break;
+    case "bulk-apply": bulkApply(); break;
     case "ev-add": {
       const name = $("#f-ename").value.trim(), date = $("#f-edate").value, type = $("#f-etype").value, note = $("#f-enote").value.trim();
       if (!date) { toast("날짜를 넣어 주세요."); $("#f-edate").focus(); return; }
@@ -444,6 +477,48 @@ document.addEventListener("keydown", e => {
   else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
   else if (e.key === "Escape") { if ($("#modal-root").innerHTML) $("#modal-root").innerHTML = ""; else if (S.sel) { S.sel = null; render(); } }
 });
+function parseBulk(text){
+  const out = [], bad = [];
+  String(text || "").split(/\r?\n/).forEach(line => {
+    const t = line.trim(); if (!t) return;
+    const tok = t.split(/\t|,|\s+/).map(x => x.trim()).filter(Boolean);
+    let type = null, date = null, loss = false; const nm = [];
+    tok.forEach(x => {
+      if (/^(입사|in|취득)$/i.test(x)) { type = "in"; return; }
+      if (/^(퇴사|out)$/i.test(x)) { type = "out"; return; }
+      if (/^상실$/.test(x)) { type = "out"; loss = true; return; }
+      let m = x.match(/^(\d{4})[.\-\/]?(\d{1,2})[.\-\/]?(\d{1,2})?\.?$/);
+      if (m && +m[2] >= 1 && +m[2] <= 12 && !(m[3] && (+m[3] < 1 || +m[3] > 31)) && (x.length >= 6)) { const ymS = m[1] + "-" + String(m[2]).padStart(2, "0"); date = m[3] ? ymS + "-" + String(m[3]).padStart(2, "0") : ymS; return; }
+      if (/^(이름|성명|구분|날짜|일자)$/.test(x)) return;
+      nm.push(x);
+    });
+    if (!type || !date) { if (!/^(구분|이름|성명)/.test(t)) bad.push(t); return; }
+    if (loss && date.length === 10) { const dt = new Date(date + "T00:00:00"); dt.setDate(dt.getDate() - 1); date = dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0"); }
+    out.push({type, name: nm.join(" "), date});
+  });
+  return {out, bad};
+}
+let bulkPlan = null;
+function openBulk(){
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(560px,100%)"><b>입퇴사 여러 건 붙여넣기</b>
+  <p class="muted mini" style="margin:0">한 줄에 한 건씩 <b>구분 · 이름 · 날짜</b>를 넣으세요. 순서는 상관없습니다.<br>예) <code>퇴사 김준현 2026-02</code> / <code>입사	홍길동	2026.3.2</code> — 날짜를 모르면 <b>연-월</b>만 써도 됩니다.<br>건강보험 <b>상실</b>로 넣으면 상실일 하루 전을 퇴사일로 바꿉니다.</p>
+  <textarea id="m-bulk" placeholder="퇴사 김준현 2026-02"></textarea><div id="m-bulk-out" class="mini"></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">닫기</button><button class="btn primary" data-act="bulk-apply" id="m-bulk-go" disabled>추가</button></div></div></div>`;
+  const ta = $("#m-bulk"); ta.focus();
+  ta.addEventListener("input", () => {
+    bulkPlan = parseBulk(ta.value); const d = D(), keyOf = e => e.type + "|" + (e.name || "") + "|" + e.date;
+    const have = new Set(d.events.map(keyOf)); const dup = bulkPlan.out.filter(e => have.has(keyOf(e)));
+    bulkPlan.add = bulkPlan.out.filter(e => !have.has(keyOf(e)));
+    $("#m-bulk-out").innerHTML = `<p style="margin:4px 0"><b>${bulkPlan.add.length}건 추가</b>${dup.length ? ` · 이미 있는 ${dup.length}건 건너뜀` : ""}${bulkPlan.bad.length ? ` · <span style="color:var(--accent)">읽지 못한 줄 ${bulkPlan.bad.length}: ${bulkPlan.bad.slice(0, 3).map(esc).join(" / ")}</span>` : ""}</p>` +
+      bulkPlan.add.slice(0, 30).map(e => `<div class="ev"><span class="tg ${e.type}">${e.type === "in" ? "입사" : "퇴사"}</span><span class="d" style="width:auto;min-width:64px">${esc(dstr(e))}</span><span class="nm">${esc(e.name || "(이름 없음)")}</span></div>`).join("");
+    $("#m-bulk-go").disabled = !bulkPlan.add.length;
+  });
+}
+function bulkApply(){
+  if (!bulkPlan || !bulkPlan.add.length) return; const add = bulkPlan.add;
+  mutate(d => { add.forEach(e => d.events.push({id: uid("e"), type: e.type, name: e.name, date: e.date, note: ""})); return add.length + "건을 기록했습니다."; });
+  bulkPlan = null; $("#modal-root").innerHTML = "";
+}
 function addScen(name, data){
   const id = uid("h"); const order = Math.max(-1, ...Object.values(S.scen).map(s => s.order ?? 0)) + 1;
   if (S.cur) S.cmp = S.cur;
