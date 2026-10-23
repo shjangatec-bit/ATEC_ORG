@@ -538,12 +538,21 @@ function unitPane(d, u){
   const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null;
   let mvHtml = "";
   if (B) {
-    const bp = pm(B);
+    const bp = pm(B), bU = um(B)[u.id], L = [];
+    if (!bU) L.push("<b>신설</b> · " + esc(unitName(d, u.parent)) + " 아래");
+    else {
+      if (bU.name !== u.name) L.push("<b>명칭</b> · " + esc(bU.name) + " → " + esc(u.name));
+      if (bU.type !== u.type) L.push("<b>유형</b> · " + esc(bU.type) + " → " + esc(u.type));
+      if (bU.parent !== u.parent) L.push("<b>상위 조직</b> · " + esc(unitName(B, bU.parent)) + " → " + esc(unitName(d, u.parent)));
+      const bh = headLabel(B, bU), chh = headLabel(d, u); if (bh !== chh) L.push("<b>조직장</b> · " + esc(bh) + " → " + esc(chh));
+    }
     const tin = mine.filter(p => bp[p.id] && bp[p.id].unit && bp[p.id].unit !== u.id);
-    const tout = B.people.filter(b => b.unit === u.id && d.people.some(p => p.id === b.id && p.unit && p.unit !== u.id));
-    if (tin.length || tout.length) mvHtml = `<h4>부서이동 (‘${esc(S.scen[S.base].name)}’ 대비)</h4>` +
-      (tin.length ? `<p class="mvlist"><b>전입 ${tin.length}</b> · ${tin.map(p => esc(pname(p)) + " ← " + esc(unitName(B, bp[p.id].unit))).join(", ")}</p>` : "") +
-      (tout.length ? `<p class="mvlist"><b>전출 ${tout.length}</b> · ${tout.map(b => esc(pname(b)) + " → " + esc(unitName(d, d.people.find(p => p.id === b.id).unit))).join(", ")}</p>` : "");
+    const tnew = mine.filter(p => !bp[p.id] || !bp[p.id].unit);
+    const tout = B.people.filter(b => b.unit === u.id && !mine.some(p => p.id === b.id));
+    if (tin.length) L.push(`<b>전입 ${tin.length}</b> · ` + tin.map(p => esc(pname(p)) + " ← " + esc(unitName(B, bp[p.id].unit))).join(", "));
+    if (tout.length) L.push(`<b>전출 ${tout.length}</b> · ` + tout.map(b => { const now = d.people.find(p => p.id === b.id); return esc(pname(b)) + " → " + (now ? esc(unitName(d, now.unit)) : "명단 제외"); }).join(", "));
+    if (tnew.length) L.push(`<b>충원 ${tnew.length}</b> · ` + tnew.map(p => esc(pname(p)) + (bp[p.id] ? " (미배치에서)" : "")).join(", "));
+    if (L.length) mvHtml = `<h4>변경사항 (‘${esc(S.scen[S.base].name)}’ 대비)</h4>` + L.map(x => `<p class="mvlist">${x}</p>`).join("");
   }
   const hv = u.headId ? u.headId : (u.headText ? "__text" : "");
   const pOpt = p => `<option value="${p.id}"${p.id === u.headId ? " selected" : ""}>${esc(pname(p))}${p.rank ? " · " + esc(p.rank) : ""}${p.unit !== u.id ? " (" + esc(unitName(d, p.unit)) + ")" : ""}</option>`;
