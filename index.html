@@ -1,0 +1,967 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>조직도 샌드박스</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: 상단 도구줄 + 요약띠, 아래는 조직도 캔버스(좌)와 편집 패널(우). 좁은 화면에서는 위아래로 쌓임 */
+:root{
+  --bg:#eef0f4; --surface:#ffffff; --surface2:#f6f7fa; --ink:#1a2130; --muted:#5b6475; --line:#c3c9d4; --line2:#e2e5eb;
+  --band:#25304a; --band-ink:#ffffff; --band-sub:#c9d1e3;
+  --accent:#c4004b; --accent-soft:#fbe6ee; --accent-ink:#ffffff;
+  --chg:#a05f00; --chg-soft:#fff1d6; --out:#6b7280;
+  --j-sales:#2f5fd0; --j-office:#6b7488; --j-rnd:#0f8a7e; --j-tech:#c47a00;
+  --ok:#1f7a4d; --warn:#b54708;
+  --f-ui:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11141a; --surface:#1a1f28; --surface2:#151920; --ink:#e6e9ef; --muted:#9aa3b3; --line:#3d4555; --line2:#2a303c;
+  --band:#34436a; --band-ink:#ffffff; --band-sub:#c3cce0;
+  --accent:#ff4f8e; --accent-soft:#3b1828; --accent-ink:#1a0710;
+  --chg:#f0b041; --chg-soft:#3a2c10; --out:#9aa3b3;
+  --j-sales:#7aa2ff; --j-office:#a3abbd; --j-rnd:#4fd1c0; --j-tech:#f0b041;
+  --ok:#5ad39a; --warn:#f6a35b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11141a; --surface:#1a1f28; --surface2:#151920; --ink:#e6e9ef; --muted:#9aa3b3; --line:#3d4555; --line2:#2a303c;
+  --band:#34436a; --band-ink:#ffffff; --band-sub:#c3cce0;
+  --accent:#ff4f8e; --accent-soft:#3b1828; --accent-ink:#1a0710;
+  --chg:#f0b041; --chg-soft:#3a2c10; --out:#9aa3b3;
+  --j-sales:#7aa2ff; --j-office:#a3abbd; --j-rnd:#4fd1c0; --j-tech:#f0b041;
+  --ok:#5ad39a; --warn:#f6a35b; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:13px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+.app{height:100%;display:flex;flex-direction:column;min-height:0}
+header{background:var(--surface);border-bottom:1px solid var(--line2);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.brand{font-weight:700;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand::before{content:"";width:10px;height:10px;background:var(--accent);border-radius:2px}
+.grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sep{width:1px;height:22px;background:var(--line2)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:5px 10px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default;border-color:var(--line)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn.danger{color:var(--accent);border-color:var(--accent)}
+.btn.sm{padding:3px 8px;font-size:12px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select,input[type=text],input:not([type]),textarea{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:5px 8px;min-width:0}
+#scen{max-width:190px}
+#sname{width:180px}
+.status{font-size:12px;color:var(--muted);margin-left:auto}
+.status.err{color:var(--accent)}
+.strip{background:var(--surface2);border-bottom:1px solid var(--line2);padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.sumline{font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.facts{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-variant-numeric:tabular-nums}
+.facts b{color:var(--ink);font-weight:600}
+.delta-up{color:var(--ok)} .delta-dn{color:var(--accent)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-left:auto}
+.lg{display:inline-flex;align-items:center;gap:4px}
+.sw{width:14px;height:10px;border-radius:2px;border:1px solid var(--line);display:inline-block}
+.sw.band{background:var(--band);border-color:var(--band)} .sw.chg{background:var(--chg-soft);border-color:var(--chg)} .sw.new{background:var(--accent-soft);border-color:var(--accent)} .sw.out{border-style:dashed;border-color:var(--out)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
+.canvas{display:flex;flex-direction:column;min-height:0;min-width:0}
+.scroll{flex:1;overflow:auto;min-height:0}
+.tree{width:max-content;margin:0 auto;padding:22px 24px 40px}
+.root-wrap{display:flex;justify-content:center;position:relative}
+.root-wrap.has-kids{padding-bottom:18px}
+.root-wrap.has-kids::after{content:"";position:absolute;bottom:0;left:50%;height:18px;border-left:1.5px solid var(--line)}
+.cols{display:flex;gap:14px;align-items:flex-start;justify-content:center}
+.col{position:relative;padding-top:18px;width:178px;display:flex;flex-direction:column}
+.col::before{content:"";position:absolute;top:0;left:-7px;right:-7px;border-top:1.5px solid var(--line)}
+.col:first-child::before{left:50%} .col:last-child::before{right:50%}
+.col:only-child::before{display:none}
+.col::after{content:"";position:absolute;top:0;left:50%;height:18px;border-left:1.5px solid var(--line)}
+.kids{margin-left:12px;padding-left:12px;border-left:1.5px solid var(--line);display:flex;flex-direction:column;gap:8px;padding-top:8px}
+.sub{position:relative;display:flex;flex-direction:column}
+.sub::before{content:"";position:absolute;left:-12px;top:17px;width:12px;border-top:1.5px solid var(--line)}
+.unit{position:relative;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);cursor:pointer;text-align:left;user-select:none}
+.unit.lv-root{min-width:220px}
+.unit .band{padding:6px 9px}
+.unit.big .band{background:var(--band);color:var(--band-ink);border-radius:4px 4px 0 0}
+.unit.big:not(:has(.chips)) .band{border-radius:4px}
+.unit.big .u-head{color:var(--band-sub)}
+.u-top{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.u-name{font-weight:700;font-size:13px;letter-spacing:-.01em;overflow-wrap:anywhere}
+.u-cnt{font-family:var(--f-num);font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums;opacity:.9}
+.u-cnt i{font-style:normal;font-family:var(--f-ui);font-size:11px;opacity:.85}
+.u-head{font-size:12px;color:var(--muted);margin-top:1px}
+.unit.st-chg{border-color:var(--chg);background:var(--chg-soft)}
+.unit.st-new{border-color:var(--accent);background:var(--accent-soft)}
+.unit.st-out{border-style:dashed;border-color:var(--out)}
+.unit.big.st-chg .band{background:var(--chg);color:#fff} .unit.big.st-chg .u-head{color:#fff3dd}
+.unit.big.st-new .band{background:var(--accent);color:var(--accent-ink)} .unit.big.st-new .u-head{color:var(--accent-ink);opacity:.85}
+.unit.sel{box-shadow:0 0 0 3px var(--accent)}
+.unit.dz-into{outline:2px dashed var(--accent);outline-offset:3px}
+.unit.dz-before::before,.unit.dz-after::after{content:"";position:absolute;background:var(--accent);border-radius:2px}
+.lv-team.dz-before::before{left:0;right:0;top:-6px;height:3px} .lv-team.dz-after::after{left:0;right:0;bottom:-6px;height:3px}
+.lv-div.dz-before::before{top:0;bottom:0;left:-9px;width:3px} .lv-div.dz-after::after{top:0;bottom:0;right:-9px;width:3px}
+.dtag{position:absolute;top:-9px;right:6px;font-size:10.5px;font-weight:700;padding:0 6px;border-radius:9px;line-height:17px;z-index:1}
+.dtag-new{background:var(--accent);color:var(--accent-ink)} .dtag-chg{background:var(--chg);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:3px;padding:6px 7px 7px}
+.chip{display:inline-flex;align-items:center;gap:3px;font-size:12px;padding:1px 6px 1px 5px;border-radius:4px;background:var(--surface2);border:1px solid var(--line2);cursor:grab;white-space:nowrap}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--jc,var(--muted));flex:none}
+.chip.j-s{--jc:var(--j-sales)} .chip.j-o{--jc:var(--j-office)} .chip.j-r{--jc:var(--j-rnd)} .chip.j-t{--jc:var(--j-tech)}
+.chip.head{font-weight:700;border-color:var(--line)}
+.chip.vac{border-style:dashed;border-color:var(--muted);color:var(--muted);background:transparent}
+.chip.hit{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chip.moved{box-shadow:inset 0 -2px 0 var(--chg)}
+.chip.sel{outline:2px solid var(--accent);outline-offset:1px}
+.mk{font-size:10px;color:var(--accent)}
+.chip.mv{border-color:var(--chg);background:var(--chg-soft)}
+.mvk{font-size:11px;color:var(--chg);font-weight:700}
+.mvlist{font-size:12.5px;margin:2px 0 6px}
+.mvlist b{color:var(--chg)}
+body.viewer #scen,body.viewer #sname,body.viewer #b-dup,body.viewer #b-new,body.viewer #b-del,body.viewer #b-undo,body.viewer #b-redo,body.viewer #b-exp,body.viewer #b-imp,body.viewer #b-pub,body.viewer .sep,body.viewer #tray,body.viewer .tab[data-tab="edit"]{display:none}
+#vtitle{font-weight:600;font-size:14px}
+body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
+body.viewer .lg-review{display:none}
+#vtitle small{font-weight:400;color:var(--muted);margin-left:8px;font-size:12px}
+.pubinfo{background:var(--surface2);border-radius:6px;padding:8px 10px;font-size:12.5px}
+.inl{font:inherit;color:var(--ink);background:var(--surface);border:1.5px solid var(--accent);border-radius:3px;padding:0 3px;margin:-1px 0;min-width:0;max-width:100%;box-sizing:border-box;outline:none}
+.u-name,.u-head{cursor:text}
+.chip.hit .mk{color:inherit}
+.tray{border-top:1px solid var(--line2);background:var(--surface);padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;max-height:120px;overflow:auto}
+.tray.dz-into{background:var(--accent-soft)}
+.tray-label{font-weight:600;margin-right:6px}
+.tray-hint{color:var(--muted);font-size:12px}
+.zoom{position:sticky;left:0}
+aside{border-left:1px solid var(--line2);background:var(--surface);display:flex;flex-direction:column;min-height:0;min-width:0}
+.tabs{display:flex;border-bottom:1px solid var(--line2)}
+.tab{flex:1;border:0;background:transparent;padding:9px 0;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-weight:500}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:700}
+.pane{flex:1;overflow:auto;padding:14px 16px 24px;min-height:0}
+.pane h3{font-size:14px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pane h4{font-size:12px;color:var(--muted);font-weight:600;margin:16px 0 6px;letter-spacing:.02em}
+.fld{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px;align-items:center;margin-bottom:7px}
+.fld>label{color:var(--muted);font-size:12px}
+.fld select,.fld input{width:100%}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.row>input,.row>select{flex:1;min-width:0}
+.checks{display:flex;gap:6px 14px;flex-wrap:wrap}
+.checks label{display:inline-flex;gap:4px;align-items:center;font-size:12.5px;white-space:nowrap}
+.fld .checks input[type=checkbox]{width:auto;margin:0;flex:none}
+.help{color:var(--muted);font-size:12.5px;line-height:1.6}
+.help ol{padding-left:18px;margin:6px 0}
+.help li{margin-bottom:5px}
+.help b{color:var(--ink)}
+.dlist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px}
+.dlist li{padding:5px 8px;border-radius:4px;background:var(--surface2);font-size:12.5px;border-left:3px solid var(--line)}
+.dlist li.k-new{border-left-color:var(--accent)} .dlist li.k-chg{border-left-color:var(--chg)} .dlist li.k-del{border-left-color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted)}
+.dlist li.k-mv{border-left-color:var(--j-sales)} .dlist li.k-add{border-left-color:var(--ok)} .dlist li.k-rm{border-left-color:var(--muted)}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+th,td{padding:4px 6px;border-bottom:1px solid var(--line2);text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right}
+tr.l1 td{font-weight:700;background:var(--surface2)}
+.empty{max-width:420px;margin:60px auto;text-align:center;padding:0 16px}
+.empty h2{font-size:17px;margin:0 0 8px}
+.empty p{color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(10,14,22,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.modal .box{background:var(--surface);border-radius:8px;padding:16px;width:min(520px,100%);display:flex;flex-direction:column;gap:10px;max-height:90%;overflow:auto}
+.modal textarea{width:100%;min-height:160px;font-family:var(--f-num);font-size:11.5px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:8px 14px;border-radius:6px;font-size:12.5px;z-index:30;max-width:calc(100% - 32px)}
+.muted{color:var(--muted)}
+.mini{font-size:12px}
+@media (max-width:900px){
+  .app{height:auto}
+  main{display:block}
+  .canvas{height:66vh}
+  aside{border-left:0;border-top:1px solid var(--line2)}
+  .pane{overflow:visible}
+  .status{margin-left:0;width:100%}
+  .legend{margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">조직도 샌드박스</div>
+    <span id="vtitle" hidden></span>
+    <button class="btn primary" id="b-endprev" hidden>미리보기 끝내기</button>
+    <div class="grp">
+      <select id="scen" aria-label="조직안 선택"></select>
+      <input id="sname" aria-label="조직안 이름" placeholder="조직안 이름">
+      <button class="btn" id="b-dup" title="지금 보고 있는 안을 그대로 복사해 새 안을 만듭니다">복제</button>
+      <button class="btn" id="b-new">빈 안</button>
+      <button class="btn" id="b-del">안 삭제</button>
+    </div>
+    <span class="sep"></span>
+    <div class="grp">
+      <button class="btn" id="b-undo" title="되돌리기 (Ctrl+Z)">↶ 되돌리기</button>
+      <button class="btn" id="b-redo" title="다시 실행 (Ctrl+Y)">↷</button>
+      <button class="btn on" id="b-people">인원 표시</button>
+      <button class="btn on" id="b-moves" title="비교 기준안과 소속이 다른 사람을 ↔로 표시합니다">이동자 표시</button>
+      <button class="btn" id="b-cmp">비교 표시</button>
+      <button class="btn sm" id="b-zo" aria-label="축소">－</button><span id="zv" class="mini muted">100%</span><button class="btn sm" id="b-zi" aria-label="확대">＋</button>
+    </div>
+    <span class="sep"></span>
+    <div class="grp">
+      <input id="q" placeholder="이름 찾기" aria-label="이름 찾기" style="width:110px">
+      <button class="btn" id="b-exp">내보내기</button>
+      <button class="btn" id="b-imp">가져오기</button>
+      <button class="btn primary" id="b-pub" hidden>경영진 공개</button>
+      <button class="btn" id="b-logout" hidden>로그아웃</button>
+    </div>
+    <span class="status" id="status" aria-live="polite">불러오는 중…</span>
+  </header>
+  <div class="strip">
+    <span class="sumline" id="sumline">—</span>
+    <button class="btn sm" id="b-copysum" title="PPT 상단 문구로 붙여넣기">문구 복사</button>
+    <span class="facts" id="facts"></span>
+    <span class="legend">
+      <span class="lg"><i class="sw band"></i>부/실 조직</span>
+      <span class="lg"><i class="sw chg"></i>변경 조직</span>
+      <span class="lg"><i class="sw new"></i>신설 조직</span>
+      <span class="lg"><i class="sw out"></i>외주</span>
+      <span class="lg"><b class="mk">▲</b>승진</span>
+      <span class="lg"><b class="mk">●</b>신규선임</span>
+      <span class="lg lg-review"><b class="mk">■</b>승진심사대상</span>
+      <span class="lg"><b class="mvk">↔</b>부서이동</span>
+    </span>
+  </div>
+  <main>
+    <section class="canvas">
+      <div class="scroll" id="scroll"><div class="empty"><p>불러오는 중…</p></div></div>
+      <div class="tray" id="tray" data-tray="1"></div>
+    </section>
+    <aside>
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-tab="edit" role="tab">편집</button>
+        <button class="tab" data-tab="diff" role="tab">변경사항</button>
+        <button class="tab" data-tab="table" role="tab">요약표</button>
+      </div>
+      <div class="pane" id="pane"></div>
+    </aside>
+  </main>
+</div>
+<div id="login" class="modal" hidden><form class="box" id="login-form" style="max-width:340px">
+  <b style="font-size:15px">조직도 샌드박스</b><p class="muted mini" style="margin:0">회사에서 받은 아이디로 로그인하세요.</p>
+  <input id="l-id" placeholder="아이디" autocomplete="username"><input id="l-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+  <p id="l-err" class="mini" style="color:var(--accent);margin:0;min-height:1.2em"></p>
+  <button class="btn primary" type="submit">로그인</button></form></div>
+<div id="modal-root"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+"use strict";
+const BIG = new Set(["사업부","본부","실","연구실","연구소","공장","대표"]);
+const TYPES = ["사업부","본부","실","연구실","연구소","공장","팀","파트","기타"];
+const SUMORDER = ["사업부","본부","연구소","연구실","공장","실","팀","파트"];
+const STATUS = [["","기존"],["변경","변경"],["신설","신설"],["외주","외주"]];
+const STCLS = {"변경":"st-chg","신설":"st-new","외주":"st-out"};
+const JOBS = ["영업","사무","연구","기능"];
+const JOBCLS = {"영업":"j-s","사무":"j-o","연구":"j-r","기능":"j-t"};
+const RANKS = ["대표이사","상무","이사","수석","책임","선임","사원"];
+const FLAGS = [["promo","▲","승진"],["newlead","●","신규선임"],["review","■","승진심사대상"],["move","↔","부서이동"]];
+const LSKEY = "orgSandbox.v1", PREFKEY = "orgSandbox.pref";
+
+const S = {view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"edit", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
+const hist = {};
+let col = null, downloads = null, firstSnap = true, pubRef = null, roSaved = false;
+const dirty = new Set(), saving = new Set(), timers = {};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+function lsGet(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+const pref = Object.assign({}, lsGet(PREFKEY) || {});
+function savePref(){ pref.cur = S.cur; pref.base = S.base; pref.showPeople = S.showPeople; pref.showMoves = S.showMoves; pref.zoom = S.zoom; lsSet(PREFKEY, pref); }
+if (typeof pref.showPeople === "boolean") S.showPeople = pref.showPeople;
+if (typeof pref.showMoves === "boolean") S.showMoves = pref.showMoves;
+if (typeof pref.zoom === "number") S.zoom = pref.zoom;
+
+/* ---------- model helpers ---------- */
+const D = () => S.view ? (S.pub && S.pub.data) : (S.scen[S.cur] && S.scen[S.cur].data);
+const um = d => { const m = {}; d.units.forEach(u => m[u.id] = u); return m; };
+const pm = d => { const m = {}; d.people.forEach(p => m[p.id] = p); return m; };
+const rootOf = d => d.units.find(u => u.parent == null);
+const kids = (d, id) => d.units.filter(u => u.parent === id).sort((a,b) => a.order - b.order);
+const inUnit = (d, id) => d.people.filter(p => p.unit === id);
+function subtree(d, id){ const out = [id]; for (let i = 0; i < out.length; i++) d.units.forEach(u => { if (u.parent === out[i]) out.push(u.id); }); return out; }
+function count(d, id){ const s = new Set(subtree(d, id)); let n = 0, v = 0; d.people.forEach(p => { if (s.has(p.unit)) { n++; if (p.vacant) v++; } }); return {n, v}; }
+function depth(d, u){ let k = 0, m = um(d); while (u && u.parent != null) { k++; u = m[u.parent]; } return k; }
+function marks(p){ return FLAGS.filter(f => (p.flags||[]).includes(f[0])).map(f => f[1]).join(""); }
+function pname(p){ return p.vacant ? "채용예정" + (p.rank ? "(" + p.rank + ")" : "") : p.name; }
+function headLabel(d, u){
+  if (u.headId){
+    const p = d.people.find(x => x.id === u.headId);
+    if (!p) return "공석";
+    const pre = p.unit === u.id ? "" : "겸) ";
+    const mk = marks(p).replace(/[■↔]/g,"");
+    const nm = p.vacant ? "(신) " + (p.rank ? p.rank + " " : "") + "채용예정" : (p.rank ? p.rank + " " : "") + p.name;
+    return (mk ? mk + " " : "") + pre + nm;
+  }
+  return u.headText || "공석";
+}
+function unitName(d, id){ if (!id) return "미배치"; const u = d.units.find(x => x.id === id); return u ? u.name : "(삭제된 조직)"; }
+function summary(d){
+  const r = rootOf(d); const c = {};
+  d.units.forEach(u => { if (u !== r) c[u.type] = (c[u.type]||0) + 1; });
+  const parts = SUMORDER.filter(t => c[t]).map(t => c[t] + t);
+  Object.keys(c).forEach(t => { if (!SUMORDER.includes(t)) parts.push(c[t] + t); });
+  const n = count(d, r.id).n;
+  return "<" + parts.join(",") + ". " + n + "명>";
+}
+function blankData(){ return {units:[{id:"root",name:"대표이사",type:"대표",status:"",parent:null,order:0,headId:null,headText:"",note:""}], people:[]}; }
+function normalize(d){
+  d = d && typeof d === "object" ? d : blankData();
+  if (!Array.isArray(d.units)) d.units = []; if (!Array.isArray(d.people)) d.people = [];
+  if (!d.units.some(u => u.parent == null)) d.units.unshift(blankData().units[0]);
+  const ids = new Set(d.units.map(u => u.id));
+  d.units.forEach((u,i) => { u.order = typeof u.order === "number" ? u.order : i; if (u.parent != null && !ids.has(u.parent)) u.parent = rootOf(d).id; u.status = u.status || ""; u.headText = u.headText || ""; u.note = u.note || ""; });
+  d.people.forEach(p => { p.flags = Array.isArray(p.flags) ? p.flags : []; if (p.unit && !ids.has(p.unit)) p.unit = null; p.rank = p.rank || ""; p.note = p.note || ""; p.job = p.job || "사무"; });
+  return d;
+}
+
+/* ---------- history & save ---------- */
+function H(id){ return hist[id] || (hist[id] = {u:[], r:[], key:null, t:0}); }
+function mutate(fn, key, opts){
+  if (S.readOnly) { toast("보기 전용으로 열려 있어 수정할 수 없습니다."); return; }
+  const d = D(); if (!d) return;
+  const h = H(S.cur), now = Date.now();
+  if (!(key && h.key === key && now - h.t < 1500)) { h.u.push(JSON.stringify(d)); if (h.u.length > 80) h.u.shift(); h.r = []; }
+  h.key = key || null; h.t = now;
+  const msg = fn(d);
+  markDirty(S.cur);
+  render(opts || {});
+  if (typeof msg === "string") toast(msg);
+}
+function undo(){ if (S.view) return; const h = H(S.cur); if (!h.u.length) return; h.r.push(JSON.stringify(D())); S.scen[S.cur].data = JSON.parse(h.u.pop()); h.key = null; fixSel(); markDirty(S.cur); render({}); }
+function redo(){ if (S.view) return; const h = H(S.cur); if (!h.r.length) return; h.u.push(JSON.stringify(D())); S.scen[S.cur].data = JSON.parse(h.r.pop()); h.key = null; fixSel(); markDirty(S.cur); render({}); }
+function fixSel(){ const d = D(); if (!S.sel || !d) return; const ok = S.sel.k === "u" ? d.units.some(u => u.id === S.sel.id) : d.people.some(p => p.id === S.sel.id); if (!ok) S.sel = null; }
+
+function markDirty(id){
+  if (!S.scen[id]) return;
+  S.scen[id].updatedAt = Date.now();
+  dirty.add(id); clearTimeout(timers[id]);
+  timers[id] = setTimeout(() => flush(id), 700);
+  setStatus("저장 중…");
+}
+async function flush(id){
+  if (saving.has(id) || !dirty.has(id)) return;
+  dirty.delete(id); saving.add(id);
+  try {
+    if (S.mode === "db") { const sc = S.scen[id]; if (sc) await col.doc(id).set(clone(sc)); }
+    else saveLocal();
+  } catch (e) {
+    if (e && e.code === "invalid_argument" && S.mode === "db" && !String(e.message||"").match(/256|size|deep/i)) { S.readOnly = true; setStatus("보기 전용 — 저장 권한이 없습니다", true); }
+    else if (e && e.code === "quota_exceeded") setStatus("저장 공간이 가득 찼습니다. 쓰지 않는 안을 지워 주세요.", true);
+    else { dirty.add(id); setStatus("저장하지 못했습니다. 잠시 후 다시 시도합니다.", true); setTimeout(() => flush(id), 3000); }
+  } finally {
+    saving.delete(id);
+    if (dirty.has(id) && !S.readOnly) setTimeout(() => flush(id), 50); else if (!dirty.size && !saving.size && !S.readOnly) idleStatus();
+  }
+}
+function saveLocal(){ lsSet(LSKEY, S.scen); }
+function idleStatus(){ setStatus(S.mode === "db" ? "저장됨" : "이 브라우저에만 저장됩니다 (내보내기로 백업하세요)"); }
+function setStatus(t, err){ const el = $("#status"); el.textContent = t; el.classList.toggle("err", !!err); }
+let toastT; function toast(t){ const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 3200); }
+
+/* ---------- scenarios ---------- */
+function scenList(){ return Object.entries(S.scen).sort((a,b) => (a[1].order??0) - (b[1].order??0) || (a[1].updatedAt||0) - (b[1].updatedAt||0)); }
+function nextOrder(){ return Math.max(-1, ...Object.values(S.scen).map(s => s.order ?? 0)) + 1; }
+function addScenario(name, data, note){
+  const id = uid("s");
+  S.scen[id] = {name, note: note || "", order: nextOrder(), updatedAt: Date.now(), data: normalize(data)};
+  if (S.cur && S.cur !== id) S.base = S.cur;
+  S.cur = id; S.sel = null; markDirty(id); savePref(); render({});
+  return id;
+}
+async function deleteScenario(id){
+  delete S.scen[id]; dirty.delete(id); clearTimeout(timers[id]);
+  if (S.mode === "db") { try { await col.doc(id).delete(); } catch(e){ setStatus("삭제하지 못했습니다.", true); } } else saveLocal();
+  const l = scenList(); S.cur = l.length ? l[l.length-1][0] : null;
+  if (S.base === id || S.base === S.cur) S.base = (l.find(x => x[0] !== S.cur) || [null])[0];
+  S.sel = null; savePref(); render({});
+}
+function pickDefaults(){
+  const l = scenList();
+  if (!S.scen[S.cur]) S.cur = (pref.cur && S.scen[pref.cur]) ? pref.cur : (l.length ? l[l.length-1][0] : null);
+  if (!S.scen[S.base] || S.base === S.cur) S.base = (pref.base && S.scen[pref.base] && pref.base !== S.cur) ? pref.base : ((l.find(x => x[0] !== S.cur) || [null])[0]);
+}
+
+/* ---------- diff ---------- */
+function computeDiff(B, C){
+  const bu = um(B), cu = um(C), bp = pm(B), cp = pm(C);
+  const r = {units:[], people:[], tag:{}, moved:new Set(), from:{}, rows:[]};
+  C.units.forEach(u => {
+    const b = bu[u.id];
+    if (!b) { r.units.push({k:"new", t:"신설 · " + u.name + " (" + unitName(C, u.parent) + " 아래)"}); r.tag[u.id] = {k:"new", t:"신설"}; return; }
+    const ch = [];
+    if (b.name !== u.name) ch.push("명칭 " + b.name + " → " + u.name);
+    if (b.parent !== u.parent) ch.push("상위 " + unitName(B, b.parent) + " → " + unitName(C, u.parent));
+    if (b.type !== u.type) ch.push("유형 " + b.type + " → " + u.type);
+    const bh = headLabel(B, b), chh = headLabel(C, u); if (bh !== chh) ch.push("조직장 " + bh + " → " + chh);
+    if (ch.length) { r.units.push({k:"chg", t:u.name + " · " + ch.join(" / ")}); r.tag[u.id] = {k:"chg", t:"변경"}; }
+  });
+  B.units.forEach(b => { if (!cu[b.id]) r.units.push({k:"del", t:"폐지 · " + b.name}); });
+  C.people.forEach(p => {
+    const b = bp[p.id];
+    if (!b) { r.people.push({k:"add", t:(p.vacant ? "채용예정 추가" : "추가") + " · " + pname(p) + " → " + unitName(C, p.unit)}); r.moved.add(p.id); return; }
+    if (b.unit !== p.unit) { r.people.push({k:"mv", t:pname(p) + " · " + unitName(B, b.unit) + " → " + unitName(C, p.unit)}); r.moved.add(p.id); if (b.unit && p.unit) r.from[p.id] = unitName(B, b.unit); }
+  });
+  B.people.forEach(b => { if (!cp[b.id]) r.people.push({k:"rm", t:"제외 · " + pname(b) + " (" + unitName(B, b.unit) + ")"}); });
+  const bR = rootOf(B), cR = rootOf(C);
+  const ids = []; kids(B, bR.id).forEach(u => ids.push(u.id)); kids(C, cR.id).forEach(u => { if (!ids.includes(u.id)) ids.push(u.id); });
+  ids.forEach(id => r.rows.push({name: cu[id] ? cu[id].name : bu[id].name, b: bu[id] ? count(B, id).n : null, c: cu[id] ? count(C, id).n : null}));
+  r.rows.push({name:"합계", b:count(B, bR.id).n, c:count(C, cR.id).n, total:true});
+  return r;
+}
+function diffNow(){ if (S.view) return S.pub && S.pub.diff ? Object.assign({moved:new Set(), tag:{}, from:{}, units:[], people:[], rows:[]}, S.pub.diff) : null; const b = S.scen[S.base], c = S.scen[S.cur]; return b && c && S.base !== S.cur ? computeDiff(b.data, c.data) : null; }
+
+/* ---------- render ---------- */
+function render(o){
+  o = o || {};
+  if (!S.view) pickDefaults();
+  renderHeader();
+  const d = D();
+  if (!d) { renderEmpty(); return; }
+  const diff = diffNow();
+  renderStrip(d, diff);
+  if (!o.keepChart) renderChart(d, diff);
+  if (!o.keepTray) renderTray(d, diff);
+  if (!o.keepPanel) renderPane(d, diff);
+}
+function renderHeader(){
+  const l = scenList(), sel = $("#scen");
+  sel.innerHTML = l.map(([id, s]) => `<option value="${id}"${id === S.cur ? " selected" : ""}>${esc(s.name || "이름 없는 안")}</option>`).join("") || `<option>조직안 없음</option>`;
+  const nm = $("#sname"); if (document.activeElement !== nm) nm.value = S.scen[S.cur] ? S.scen[S.cur].name : "";
+  const has = S.view ? !!S.pub : !!S.scen[S.cur];
+  const vt = $("#vtitle"); vt.hidden = !S.view; vt.innerHTML = S.view && S.pub ? esc(S.pub.name) + `<small>${fmtDate(S.pub.publishedAt)} 공개본 · 보기 전용</small>` : "";
+  $("#b-endprev").hidden = !(S.view && S.preview);
+  document.body.classList.toggle("viewer", S.view);
+  ["#sname","#b-dup","#b-del","#b-exp","#b-pub","#b-people","#b-moves","#b-cmp","#q"].forEach(s => $(s).disabled = !has);
+  $("#b-moves").classList.toggle("on", S.showMoves);
+  const h = H(S.cur); $("#b-undo").disabled = !h.u.length; $("#b-redo").disabled = !h.r.length;
+  $("#b-people").classList.toggle("on", S.showPeople); $("#b-cmp").classList.toggle("on", S.compare);
+  $("#zv").textContent = Math.round(S.zoom * 100) + "%";
+}
+function renderEmpty(){
+  if (S.view) {
+    $("#sumline").textContent = "—"; $("#facts").innerHTML = ""; $("#pane").innerHTML = "";
+    $("#scroll").innerHTML = `<div class="empty"><h2>${S.mode === "loading" ? "불러오는 중…" : S.noAccess ? "이 링크로는 조직도를 볼 수 없습니다" : "아직 공개된 조직도가 없습니다"}</h2><p>${S.noAccess ? "Claude에 로그인한 뒤 다시 열어 주세요." : ""}</p></div>`;
+    return;
+  }
+  $("#sumline").textContent = "—"; $("#facts").innerHTML = ""; $("#tray").innerHTML = "";
+  $("#scroll").innerHTML = S.mode === "loading" ? `<div class="empty"><p>불러오는 중…</p></div>` :
+    `<div class="empty"><h2>저장된 조직안이 없습니다</h2><p>빈 조직도에서 시작하거나, 이전에 내보낸 JSON 파일을 가져오세요.</p>
+     <div class="row" style="justify-content:center;margin-top:14px"><button class="btn primary" data-act="start-blank">빈 조직도로 시작</button><button class="btn" data-act="open-import">JSON 가져오기</button></div></div>`;
+  $("#pane").innerHTML = helpHtml();
+}
+function renderStrip(d, diff){
+  $("#sumline").textContent = summary(d);
+  const all = d.people, assigned = all.filter(p => p.unit), vac = assigned.filter(p => p.vacant).length, un = all.filter(p => !p.unit).length;
+  const jc = {}; assigned.forEach(p => jc[p.job] = (jc[p.job]||0) + 1);
+  let h = `<span>현원 <b>${assigned.length - vac}</b></span><span>채용예정 <b>${vac}</b></span>` + (un ? `<span>미배치 <b>${un}</b></span>` : "");
+  h += `<span>${JOBS.map(j => j + " <b>" + (jc[j]||0) + "</b>").join(" · ")}</span>`;
+  const mvSet = new Set(assigned.filter(p => p.flags.includes("move")).map(p => p.id));
+  if (diff) Object.keys(diff.from).forEach(id => mvSet.add(id));
+  h += `<span>부서이동 <b>${mvSet.size}</b></span>`;
+  if (diff) { const t = diff.rows[diff.rows.length-1], dl = t.c - t.b; h += `<span>‘${esc(S.view ? S.pub.baseName : S.scen[S.base].name)}’ 대비 <b class="${dl>0?"delta-up":dl<0?"delta-dn":""}">${dl>0?"+":""}${dl}명</b> · 조직 변경 <b>${diff.units.length}</b> · 인원 변동 <b>${diff.people.length}</b></span>`; }
+  $("#facts").innerHTML = h;
+}
+function chipHtml(d, p, u, diff){
+  const isHead = u && u.headId === p.id;
+  const q = S.q.trim();
+  const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
+  const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
+  const tip = [p.rank, p.job, from ? "이전 소속: " + from : "", p.note, "더블클릭해서 이름 수정"].filter(Boolean).join(" · ");
+  const mv = from || (p.flags || []).includes("move");
+  const mk = marks(p).replace("↔", "");
+  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${p.id}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${esc(pname(p))}</span>`;
+}
+function unitHtml(d, u, lv, diff){
+  const {n, v} = count(d, u.id);
+  const big = BIG.has(u.type) || lv === "root";
+  const tag = S.compare && diff && diff.tag[u.id];
+  const cls = ["unit", "lv-" + lv, big ? "big" : "small", STCLS[u.status] || "", S.sel && S.sel.k === "u" && S.sel.id === u.id ? "sel" : ""].filter(Boolean).join(" ");
+  let ppl = S.showPeople ? inUnit(d, u.id) : [];
+  ppl = ppl.slice().sort((a,b) => (b.id === u.headId) - (a.id === u.headId));
+  return `<div class="${cls}" data-uid="${u.id}" draggable="${lv !== "root" && !S.readOnly}" tabindex="0">
+    ${tag ? `<span class="dtag dtag-${tag.k}">${tag.t}</span>` : ""}
+    <div class="band"><div class="u-top"><span class="u-name" title="더블클릭해서 수정">${esc(u.name)}</span><span class="u-cnt">${n}명${v ? ` <i>채용${v}</i>` : ""}</span></div>
+    <div class="u-head" title="더블클릭해서 수정">${esc(headLabel(d, u))}</div></div>
+    ${ppl.length ? `<div class="chips">${ppl.map(p => chipHtml(d, p, u, diff)).join("")}</div>` : ""}
+  </div>`;
+}
+function kidsHtml(d, u, diff){
+  const k = kids(d, u.id); if (!k.length) return "";
+  return `<div class="kids">` + k.map(c => `<div class="sub">${unitHtml(d, c, "team", diff)}${kidsHtml(d, c, diff)}</div>`).join("") + `</div>`;
+}
+function renderChart(d, diff){
+  const r = rootOf(d), l1 = kids(d, r.id), sc = $("#scroll");
+  const keep = {x: sc.scrollLeft, y: sc.scrollTop};
+  let h = `<div class="tree" style="zoom:${S.zoom}"><div class="root-wrap${l1.length ? " has-kids" : ""}">${unitHtml(d, r, "root", diff)}</div>`;
+  if (l1.length) h += `<div class="cols">` + l1.map(u => `<div class="col">${unitHtml(d, u, "div", diff)}${kidsHtml(d, u, diff)}</div>`).join("") + `</div>`;
+  h += `</div>`;
+  sc.innerHTML = h; sc.scrollLeft = keep.x; sc.scrollTop = keep.y;
+}
+function renderTray(d, diff){
+  const un = d.people.filter(p => !p.unit);
+  $("#tray").innerHTML = `<span class="tray-label">미배치 ${un.length}명</span>` + un.map(p => chipHtml(d, p, null, diff)).join("") +
+    `<span class="tray-hint">${un.length ? "" : "이름표를 여기로 끌어 놓으면 조직에서 빠집니다"}</span>`;
+}
+
+/* ---------- side pane ---------- */
+function helpHtml(){
+  return `<div class="help"><h3>사용 방법</h3><ol>
+    <li><b>조직 상자</b>를 다른 조직 위로 끌어 놓으면 그 아래로 들어갑니다. 상자의 위·아래(본부급은 좌·우) 가장자리에 놓으면 순서가 바뀝니다.</li>
+    <li><b>이름표</b>를 끌어 다른 조직에 놓으면 인원이 이동합니다. 아래 ‘미배치’ 칸에 놓으면 조직에서 빠집니다.</li>
+    <li>상자 안의 <b>조직명·조직장·이름</b>을 더블클릭하면 그 자리에서 고칠 수 있습니다. Enter로 확정, Esc로 취소합니다. 채용예정 이름표에 실명을 쓰면 채용 확정으로 바뀝니다.</li>
+    <li>상자나 이름표를 한 번 누르면 이 칸에서 유형·구분·소속 등 나머지 항목을 고칠 수 있습니다. 끌기가 안 되는 휴대폰에서도 여기서 옮길 수 있습니다.</li>
+    <li>원본을 지키려면 <b>복제</b>로 새 안을 만들어 작업하세요. ‘변경사항’ 탭에서 다른 안과 비교됩니다.</li>
+    <li><b>부서이동</b>: 비교 기준안과 소속이 달라진 사람은 이름표에 <b>↔</b>가 자동으로 붙습니다(마우스를 올리면 이전 소속). 기준안과 상관없이 표시하려면 이름표를 누른 뒤 <b>↔ 부서이동</b>을 체크하세요.</li>
+    <li>조직장 앞의 <b>겸)</b>은 다른 조직 소속 인원을 조직장으로 지정하면 자동으로 붙습니다.</li></ol>
+    <p>상단 &lt;…명&gt; 문구는 조직 유형별 개수와 인원(채용예정 포함, 미배치 제외)으로 자동 계산됩니다.</p></div>`;
+}
+function unitOptions(d, exclude, selected, withNone){
+  const ex = new Set(exclude || []); const out = [];
+  (function walk(id, dep){ const u = d.units.find(x => x.id === id); if (!ex.has(id)) out.push(`<option value="${id}"${id === selected ? " selected" : ""}>${"　".repeat(dep)}${esc(u.name)}</option>`); kids(d, id).forEach(k => walk(k.id, dep + 1)); })(rootOf(d).id, 0);
+  return (withNone ? `<option value=""${!selected ? " selected" : ""}>미배치</option>` : "") + out.join("");
+}
+function renderPane(d, diff){
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === S.tab));
+  const pane = $("#pane");
+  if (S.tab === "diff") pane.innerHTML = diffPane(d, diff);
+  else if (S.tab === "table") pane.innerHTML = tablePane(d);
+  else if (S.sel && S.sel.k === "u" && d.units.some(u => u.id === S.sel.id)) pane.innerHTML = unitPane(d, d.units.find(u => u.id === S.sel.id));
+  else if (S.sel && S.sel.k === "p" && d.people.some(p => p.id === S.sel.id)) pane.innerHTML = personPane(d, d.people.find(p => p.id === S.sel.id));
+  else pane.innerHTML = helpHtml();
+}
+function unitPane(d, u){
+  const isRoot = u.parent == null;
+  const mine = inUnit(d, u.id), others = d.people.filter(p => p.unit !== u.id && p.unit);
+  const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null;
+  let mvHtml = "";
+  if (B) {
+    const bp = pm(B);
+    const tin = mine.filter(p => bp[p.id] && bp[p.id].unit && bp[p.id].unit !== u.id);
+    const tout = B.people.filter(b => b.unit === u.id && d.people.some(p => p.id === b.id && p.unit && p.unit !== u.id));
+    if (tin.length || tout.length) mvHtml = `<h4>부서이동 (‘${esc(S.scen[S.base].name)}’ 대비)</h4>` +
+      (tin.length ? `<p class="mvlist"><b>전입 ${tin.length}</b> · ${tin.map(p => esc(pname(p)) + " ← " + esc(unitName(B, bp[p.id].unit))).join(", ")}</p>` : "") +
+      (tout.length ? `<p class="mvlist"><b>전출 ${tout.length}</b> · ${tout.map(b => esc(pname(b)) + " → " + esc(unitName(d, d.people.find(p => p.id === b.id).unit))).join(", ")}</p>` : "");
+  }
+  const hv = u.headId ? u.headId : (u.headText ? "__text" : "");
+  const pOpt = p => `<option value="${p.id}"${p.id === u.headId ? " selected" : ""}>${esc(pname(p))}${p.rank ? " · " + esc(p.rank) : ""}${p.unit !== u.id ? " (" + esc(unitName(d, p.unit)) + ")" : ""}</option>`;
+  const sib = kids(d, u.parent), idx = sib.findIndex(x => x.id === u.id);
+  return `<h3><span>${esc(u.name)}</span><button class="btn sm" data-act="desel">닫기</button></h3>
+  <div class="fld"><label for="f-uname">조직명</label><input id="f-uname" value="${esc(u.name)}"></div>
+  <div class="fld"><label for="f-utype">유형</label><select id="f-utype">${(isRoot ? ["대표"] : TYPES).map(t => `<option${t === u.type ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+  <div class="fld"><label for="f-ustat">구분</label><select id="f-ustat">${STATUS.map(s => `<option value="${s[0]}"${s[0] === u.status ? " selected" : ""}>${s[1]}</option>`).join("")}</select></div>
+  <div class="fld"><label for="f-uhead">조직장</label><select id="f-uhead"><option value=""${hv === "" ? " selected" : ""}>공석</option><option value="__text"${hv === "__text" ? " selected" : ""}>직접 입력 (모회사·외부 등)</option>
+    ${mine.length ? `<optgroup label="이 조직 소속">${mine.map(pOpt).join("")}</optgroup>` : ""}<optgroup label="다른 조직 (겸직)">${others.map(pOpt).join("")}</optgroup></select></div>
+  ${hv === "__text" ? `<div class="fld"><label for="f-uheadt">표기</label><input id="f-uheadt" value="${esc(u.headText)}" placeholder="예: 모) 이사 홍길동"></div>` : ""}
+  <div class="fld"><label for="f-unote">메모</label><input id="f-unote" value="${esc(u.note)}" placeholder="예: 중부·남부 통합"></div>
+  ${isRoot ? "" : `<div class="fld"><label for="f-upar">상위 조직</label><select id="f-upar">${unitOptions(d, subtree(d, u.id), u.parent)}</select></div>
+  <div class="fld"><label>순서</label><div class="row"><button class="btn sm" data-act="ord" data-d="-1"${idx <= 0 ? " disabled" : ""}>앞으로</button><button class="btn sm" data-act="ord" data-d="1"${idx >= sib.length - 1 ? " disabled" : ""}>뒤로</button></div></div>`}
+  <h4>소속 인원 ${mine.length}명</h4>
+  <div class="chips" style="padding:0 0 8px">${mine.map(p => chipHtml(d, p, u, null)).join("") || `<span class="muted mini">아직 없습니다</span>`}</div>
+  ${mvHtml}
+  <div class="row"><input id="f-pnew" placeholder="이름"><select id="f-pjob" style="flex:0 0 72px">${JOBS.map(j => `<option>${j}</option>`).join("")}</select><button class="btn sm" data-act="padd">인원 추가</button></div>
+  <div class="row" style="margin-top:6px"><button class="btn sm" data-act="vadd">채용예정 1명 추가</button></div>
+  <h4>조직</h4>
+  <div class="row"><input id="f-cnew" placeholder="하위 조직명 (예: 기획Part)"><button class="btn sm" data-act="cadd">하위 조직 추가</button></div>
+  ${isRoot ? "" : `<div class="row" style="margin-top:6px"><select id="f-merge"><option value="">통합할 조직 선택</option>${unitOptions(d, subtree(d, u.id), null)}</select><button class="btn sm" data-act="merge">로 통합</button></div>
+  <p class="muted mini">통합하면 이 조직의 인원과 하위 조직이 선택한 조직으로 옮겨지고, 이 조직은 없어집니다.</p>
+  <div class="row" style="margin-top:10px"><button class="btn danger sm" data-act="udel">조직 삭제</button><span class="muted mini">인원은 미배치로, 하위 조직은 상위로 옮겨집니다</span></div>`}`;
+}
+function personPane(d, p){
+  const headOf = d.units.filter(u => u.headId === p.id);
+  const u = d.units.find(x => x.id === p.unit);
+  return `<h3><span>${esc(pname(p))}</span><button class="btn sm" data-act="desel">닫기</button></h3>
+  <div class="fld"><label for="f-pname">이름</label><input id="f-pname" value="${esc(p.name)}"></div>
+  <div class="fld"><label for="f-prank">직급</label><input id="f-prank" list="ranks" value="${esc(p.rank)}" placeholder="예: 책임"><datalist id="ranks">${RANKS.map(r => `<option value="${r}">`).join("")}</datalist></div>
+  <div class="fld"><label for="f-pjob2">직군</label><select id="f-pjob2">${JOBS.map(j => `<option${j === p.job ? " selected" : ""}>${j}</option>`).join("")}</select></div>
+  <div class="fld"><label for="f-punit">소속</label><select id="f-punit">${unitOptions(d, [], p.unit, true)}</select></div>
+  ${(() => { const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null; const b = B && B.people.find(x => x.id === p.id); if (!B) return ""; if (!b) return `<p class="mvlist muted">‘${esc(S.scen[S.base].name)}’에는 없는 인원입니다.</p>`; return b.unit === p.unit ? "" : `<p class="mvlist"><b>↔ 부서이동</b> · ${esc(unitName(B, b.unit))} → ${esc(unitName(d, p.unit))} <span class="muted">(‘${esc(S.scen[S.base].name)}’ 대비)</span></p>`; })()}
+  <div class="fld"><label>표시</label><div class="checks">${FLAGS.map(f => `<label><input type="checkbox" data-flag="${f[0]}"${p.flags.includes(f[0]) ? " checked" : ""}>${f[1]} ${f[2]}</label>`).join("")}<label><input type="checkbox" id="f-pvac"${p.vacant ? " checked" : ""}>채용예정</label></div></div>
+  <div class="fld"><label for="f-pnote">메모</label><input id="f-pnote" value="${esc(p.note)}"></div>
+  <h4>조직장</h4>
+  <p class="mini">${headOf.length ? headOf.map(x => esc(x.name)).join(", ") + " 조직장" : `<span class="muted">맡은 조직 없음</span>`}</p>
+  ${u && u.headId !== p.id ? `<button class="btn sm" data-act="mkhead">${esc(u.name)} 조직장으로 지정</button>` : ""}
+  <div class="row" style="margin-top:16px"><button class="btn danger sm" data-act="pdel">이 인원 삭제</button><span class="muted mini">퇴사·전출 등으로 명단에서 뺄 때</span></div>`;
+}
+function diffPane(d, diff){
+  const opts = scenList().filter(([id]) => id !== S.cur).map(([id, s]) => `<option value="${id}"${id === S.base ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+  let h = `<h3>변경사항</h3><div class="fld"><label for="f-base">비교 기준</label><select id="f-base">${opts || `<option>비교할 다른 안이 없습니다</option>`}</select></div>`;
+  if (S.view) { if (!diff) return `<h3>변경사항</h3><p class="muted">이 공개본에는 변경사항이 포함되어 있지 않습니다.</p>`; h = `<h3>변경사항</h3><p class="muted mini">기준: ${esc(S.pub.baseName)}</p>`; }
+  if (!diff) return h + `<p class="muted">‘복제’로 안을 하나 더 만들면 두 안의 차이가 여기에 정리됩니다.</p>`;
+  h += `<h4>조직별 인원</h4><div class="tblwrap"><table><thead><tr><th>조직</th><th class="n">기준</th><th class="n">현재</th><th class="n">증감</th></tr></thead><tbody>` +
+    diff.rows.map(r => { const dl = (r.c ?? 0) - (r.b ?? 0); return `<tr${r.total ? ' class="l1"' : ""}><td>${esc(r.name)}${r.b == null ? " <span class='mini' style='color:var(--accent)'>신설</span>" : r.c == null ? " <span class='mini muted'>폐지</span>" : ""}</td><td class="n">${r.b ?? "–"}</td><td class="n">${r.c ?? "–"}</td><td class="n ${dl>0?"delta-up":dl<0?"delta-dn":""}">${dl ? (dl > 0 ? "+" : "") + dl : "–"}</td></tr>`; }).join("") + `</tbody></table></div>`;
+  h += `<h4>조직 변경 ${diff.units.length}건</h4><ul class="dlist">${diff.units.map(x => `<li class="k-${x.k}">${esc(x.t)}</li>`).join("") || `<li>없음</li>`}</ul>`;
+  h += `<h4>인원 변동 ${diff.people.length}건</h4><ul class="dlist">${diff.people.map(x => `<li class="k-${x.k}">${esc(x.t)}</li>`).join("") || `<li>없음</li>`}</ul>`;
+  h += `<div class="row" style="margin-top:12px"><button class="btn sm" data-act="copydiff">변경사항 텍스트 복사</button></div>`;
+  return h;
+}
+function tableRows(d){
+  const rows = [];
+  (function walk(id, dep){ const u = d.units.find(x => x.id === id); const s = new Set(subtree(d, id)); const ps = d.people.filter(p => s.has(p.unit)); const jc = {}; ps.forEach(p => jc[p.job] = (jc[p.job]||0) + 1);
+    rows.push({u, dep, n: ps.length, v: ps.filter(p => p.vacant).length, jc, names: inUnit(d, id).map(pname).join(" ")}); kids(d, id).forEach(k => walk(k.id, dep + 1)); })(rootOf(d).id, 0);
+  return rows;
+}
+function tablePane(d){
+  const rows = tableRows(d);
+  return `<h3><span>요약표</span><button class="btn sm" data-act="copytsv">엑셀용 복사</button></h3>
+  <div class="tblwrap"><table><thead><tr><th>조직</th><th>조직장</th><th class="n">인원</th>${JOBS.map(j => `<th class="n">${j}</th>`).join("")}</tr></thead><tbody>` +
+  rows.map(r => `<tr${r.dep === 1 ? ' class="l1"' : ""}><td>${"　".repeat(Math.max(0, r.dep - 1))}${esc(r.u.name)}</td><td>${esc(headLabel(d, r.u))}</td><td class="n">${r.n}${r.v ? "<span class='muted'>(" + r.v + ")</span>" : ""}</td>${JOBS.map(j => `<td class="n">${r.jc[j] || ""}</td>`).join("")}</tr>`).join("") +
+  `</tbody></table></div><p class="muted mini">괄호는 채용예정 인원입니다. 엑셀용 복사에는 조직별 명단도 함께 들어갑니다.</p>`;
+}
+
+/* ---------- actions ---------- */
+function select(k, id){
+  if (S.view) return;
+  S.sel = id ? {k, id} : null; S.tab = "edit"; render({keepChart:true, keepTray:true});
+  document.querySelectorAll("#scroll .sel, #tray .sel").forEach(x => x.classList.remove("sel"));
+  if (id) document.querySelectorAll(k === "u" ? `#scroll .unit[data-uid="${id}"]` : `#scroll [data-pid="${id}"], #tray [data-pid="${id}"]`).forEach(x => x.classList.add("sel"));
+}
+
+/* ---------- 상자 안에서 바로 고치기 ---------- */
+function startEdit(el, init, commit, allowEmpty){
+  if (el.querySelector(".inl")) return;
+  el.closest("[draggable]") && el.closest("[draggable]").setAttribute("draggable", "false");
+  const unitEl = el.closest(".unit"); unitEl && unitEl.setAttribute("draggable", "false");
+  const inp = document.createElement("input"); inp.className = "inl"; inp.value = init;
+  inp.size = Math.max(4, init.length + 2); inp.setAttribute("aria-label", "바로 수정");
+  el.textContent = ""; el.appendChild(inp); inp.focus(); inp.select();
+  let done = false;
+  const finish = ok => {
+    if (done) return; done = true;
+    const v = inp.value.trim();
+    if (ok && v !== init && (v || allowEmpty)) commit(v); else render({keepPanel:true});
+  };
+  inp.addEventListener("keydown", ev => { ev.stopPropagation(); if (ev.key === "Enter") { ev.preventDefault(); finish(true); } else if (ev.key === "Escape") { ev.preventDefault(); finish(false); } });
+  inp.addEventListener("blur", () => finish(true));
+  inp.addEventListener("input", () => { inp.size = Math.max(4, inp.value.length + 2); });
+  ["click", "dblclick", "mousedown"].forEach(t => inp.addEventListener(t, ev => ev.stopPropagation()));
+}
+function editUnitName(el){
+  const d = D(), u = d.units.find(x => x.id === el.closest(".unit").dataset.uid);
+  startEdit(el, u.name, v => mutate(d => { d.units.find(x => x.id === u.id).name = v; }));
+}
+function editHead(el){
+  const d = D(), u = d.units.find(x => x.id === el.closest(".unit").dataset.uid);
+  const p = u.headId && d.people.find(x => x.id === u.headId);
+  if (p) {
+    const init = ((p.rank ? p.rank + " " : "") + (p.vacant ? "" : p.name)).trim();
+    startEdit(el, init, v => mutate(d => {
+      const x = d.people.find(y => y.id === p.id);
+      const tk = v.replace(/^[▲●■\s]+/, "").replace(/^겸\)\s*/, "").split(/\s+/).filter(Boolean);
+      if (!tk.length) return;
+      if (tk.length === 1) { if (RANKS.includes(tk[0])) x.rank = tk[0]; else { x.name = tk[0]; x.vacant = false; } }
+      else { x.name = tk.pop(); x.rank = tk.join(" "); x.vacant = false; }
+    }));
+  } else {
+    startEdit(el, u.headText || "", v => mutate(d => { const x = d.units.find(y => y.id === u.id); x.headId = null; x.headText = v; }), true);
+  }
+}
+function editPerson(el){
+  const d = D(), p = d.people.find(x => x.id === el.dataset.pid);
+  startEdit(el, p.vacant ? "" : p.name, v => mutate(d => { const x = d.people.find(y => y.id === p.id); x.name = v; if (x.vacant && v !== "채용예정") x.vacant = false; }));
+}
+document.addEventListener("dblclick", e => {
+  if (S.readOnly || !D()) return;
+  const chip = e.target.closest("#scroll [data-pid], #tray [data-pid]");
+  if (chip) { e.preventDefault(); editPerson(chip); return; }
+  const nm = e.target.closest("#scroll .u-name"); if (nm) { e.preventDefault(); editUnitName(nm); return; }
+  const hd = e.target.closest("#scroll .u-head"); if (hd) { e.preventDefault(); editHead(hd); }
+});
+function moveUnit(d, id, targetId, pos){
+  const u = d.units.find(x => x.id === id), t = d.units.find(x => x.id === targetId);
+  if (pos === "into") { u.parent = t.id; u.order = Math.max(-1, ...kids(d, t.id).filter(x => x !== u).map(x => x.order)) + 1; return; }
+  const sib = kids(d, t.parent).filter(x => x !== u); const i = sib.indexOf(t) + (pos === "after" ? 1 : 0);
+  sib.splice(i, 0, u); u.parent = t.parent; sib.forEach((x, k) => x.order = k);
+}
+function movePerson(d, pid, unitId){
+  const p = d.people.find(x => x.id === pid); if (!p || p.unit === unitId) return;
+  const was = d.units.filter(u => u.headId === pid && u.id === p.unit);
+  p.unit = unitId || null;
+  if (!unitId) { d.units.forEach(u => { if (u.headId === pid) u.headId = null; }); return pname(p) + "님을 미배치로 옮겼습니다."; }
+  if (was.length) return pname(p) + "님은 아직 " + was.map(u => u.name).join(", ") + " 조직장입니다 (겸직으로 표시).";
+}
+function deleteUnit(d, id){
+  const u = d.units.find(x => x.id === id);
+  kids(d, id).forEach(k => { k.parent = u.parent; k.order = 999 + k.order; });
+  d.people.forEach(p => { if (p.unit === id) p.unit = null; });
+  d.units = d.units.filter(x => x !== u);
+  kids(d, u.parent).forEach((x, i) => x.order = i);
+}
+
+const armed = {};
+function arm(btn, key, label){ if (armed[key] && Date.now() - armed[key] < 3500) { delete armed[key]; return true; } armed[key] = Date.now(); const o = btn.textContent; btn.textContent = label; setTimeout(() => { if (btn.isConnected) btn.textContent = o; }, 3500); return false; }
+
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-act]");
+  if (a) { handleAct(a.dataset.act, a, e); return; }
+  const tab = e.target.closest(".tab"); if (tab) { S.tab = tab.dataset.tab; render({keepChart:true}); return; }
+  if (e.target.closest("#scroll, #tray, #pane")) {
+    const c = e.target.closest("[data-pid]"); if (c) { select("p", c.dataset.pid); return; }
+    const u = e.target.closest(".unit[data-uid]"); if (u) { select("u", u.dataset.uid); return; }
+    if (e.target.closest("#scroll") && S.sel) select(null);
+  }
+});
+document.addEventListener("keydown", e => {
+  const typing = e.target.matches("input, textarea, select");
+  if ((e.ctrlKey || e.metaKey) && !typing) {
+    if (e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+  }
+  if (e.key === "Enter" && e.target.matches(".unit[data-uid]")) select("u", e.target.dataset.uid);
+  if (e.key === "F2" && e.target.matches("#scroll .unit[data-uid]") && !S.readOnly) { e.preventDefault(); editUnitName(e.target.querySelector(".u-name")); }
+  if (e.key === "Enter" && e.target.id === "f-pnew") handleAct("padd");
+  if (e.key === "Enter" && e.target.id === "f-cnew") handleAct("cadd");
+  if (e.key === "Escape") { const m = $("#modal-root"); if (m.innerHTML) m.innerHTML = ""; }
+});
+
+function handleAct(act, el){
+  const d = D();
+  const sel = S.sel && d ? (S.sel.k === "u" ? d.units.find(u => u.id === S.sel.id) : d.people.find(p => p.id === S.sel.id)) : null;
+  switch (act) {
+    case "desel": select(null); break;
+    case "start-blank": addScenario("새 조직안", blankData()); break;
+    case "open-import": openImport(); break;
+    case "ord": { const dir = +el.dataset.d; mutate(d => { const sib = kids(d, sel.parent); const i = sib.findIndex(x => x.id === sel.id), j = i + dir; if (j < 0 || j >= sib.length) return; [sib[i], sib[j]] = [sib[j], sib[i]]; sib.forEach((x, k) => x.order = k); }); break; }
+    case "padd": { const inp = $("#f-pnew"); const name = inp && inp.value.trim(); if (!name) { inp && inp.focus(); return; } const job = $("#f-pjob").value; mutate(d => { d.people.push({id: uid("p-"), name, rank:"", job, flags:[], note:"", vacant:false, unit: sel.id}); }); setTimeout(() => { const i = $("#f-pnew"); i && i.focus(); }, 0); break; }
+    case "vadd": mutate(d => { d.people.push({id: uid("v-"), name:"채용예정", rank:"", job: $("#f-pjob") ? $("#f-pjob").value : "사무", flags:[], note:"", vacant:true, unit: sel.id}); }); break;
+    case "cadd": { const name = ($("#f-cnew").value || "").trim() || "새 팀"; const id = uid("u-"); mutate(d => { d.units.push({id, name, type: /part|파트/i.test(name) ? "파트" : /실$/.test(name) ? "실" : /사업부$/.test(name) ? "사업부" : "팀", status:"신설", parent: sel.id, order: kids(d, sel.id).length, headId:null, headText:"", note:""}); }); S.sel = {k:"u", id}; render({}); break; }
+    case "merge": { const t = $("#f-merge").value; if (!t) { toast("통합할 조직을 먼저 고르세요."); return; } const tn = unitName(d, t), sn = sel.name;
+      mutate(d => { d.people.forEach(p => { if (p.unit === sel.id) p.unit = t; }); kids(d, sel.id).forEach(k => { k.parent = t; k.order = 999 + k.order; }); kids(d, t).forEach((x,i) => x.order = i); d.units = d.units.filter(x => x.id !== sel.id); kids(d, sel.parent).forEach((x,i) => x.order = i); return sn + "을(를) " + tn + "(으)로 통합했습니다."; });
+      S.sel = {k:"u", id:t}; render({}); break; }
+    case "udel": if (!arm(el, "udel", "한 번 더 누르면 삭제")) return; mutate(d => { deleteUnit(d, sel.id); }); S.sel = null; render({}); toast("조직을 삭제했습니다. 되돌리기로 복구할 수 있습니다."); break;
+    case "pdel": if (!arm(el, "pdel", "한 번 더 누르면 삭제")) return; mutate(d => { d.units.forEach(u => { if (u.headId === sel.id) u.headId = null; }); d.people = d.people.filter(p => p.id !== sel.id); }); S.sel = null; render({}); break;
+    case "mkhead": mutate(d => { const u = d.units.find(x => x.id === sel.unit); u.headId = sel.id; u.headText = ""; }); break;
+    case "copytsv": { const rows = tableRows(d); const lines = [["상위조직","조직","유형","구분","조직장","인원","채용예정",...JOBS,"명단"].join("\t")];
+      rows.forEach(r => lines.push([unitName(d, r.u.parent === null ? "" : r.u.parent).replace("미배치",""), r.u.name, r.u.type, r.u.status || "기존", headLabel(d, r.u), r.n, r.v, ...JOBS.map(j => r.jc[j] || 0), r.names].join("\t")));
+      copy(lines.join("\n"), "요약표를 복사했습니다. 엑셀에 붙여넣으세요."); break; }
+    case "copydiff": { const df = diffNow(); if (!df) return; const t = [S.view ? `[${S.pub.baseName}] → [${S.pub.name}]` : `[${S.scen[S.base].name}] → [${S.scen[S.cur].name}]`, "", "■ 조직 변경", ...df.units.map(x => "- " + x.t), "", "■ 인원 변동", ...df.people.map(x => "- " + x.t)]; copy(t.join("\n"), "변경사항을 복사했습니다."); break; }
+    case "do-import": doImport(); break;
+    case "pub-do": publishCurrent(!!($("#m-pubdiff") && $("#m-pubdiff").checked)); break;
+    case "pub-preview": startPreview(); break;
+    case "pub-stop": if (!arm(el, "pubstop", "한 번 더 누르면 공개 중지")) return; pubRef.delete().then(() => { S.pubOwn = null; $("#modal-root").innerHTML = ""; toast("공개를 중지했습니다. 경영진 화면은 빈 화면이 됩니다."); }, () => toast("공개를 중지하지 못했습니다.")); break;
+    case "close-modal": $("#modal-root").innerHTML = ""; break;
+    case "exp-file": exportFile(); break;
+    case "exp-copy": copy(exportJson(), "JSON을 복사했습니다. 메모장 등에 붙여 보관하세요."); break;
+  }
+}
+function copy(text, msg){
+  const done = () => toast(msg);
+  try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, msg)); } catch (e) { fallbackCopy(text, msg); }
+}
+function fallbackCopy(text, msg){
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box"><b>복사할 내용</b><p class="muted mini">자동 복사가 막혀 있습니다. 아래 내용을 전체 선택(Ctrl+A) 후 복사하세요.</p><textarea id="m-copy" readonly>${esc(text)}</textarea><div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">닫기</button></div></div></div>`;
+  const t = $("#m-copy"); t.focus(); t.select();
+}
+
+/* panel inputs */
+document.addEventListener("input", e => {
+  const d = D(); if (!d || !S.sel) return;
+  const t = e.target, id = t.id;
+  const u = S.sel.k === "u" ? d.units.find(x => x.id === S.sel.id) : null;
+  const p = S.sel.k === "p" ? d.people.find(x => x.id === S.sel.id) : null;
+  const live = {keepPanel:true};
+  if (u && id === "f-uname") mutate(d => { d.units.find(x => x.id === u.id).name = t.value; }, "uname" + u.id, live);
+  else if (u && id === "f-uheadt") mutate(d => { d.units.find(x => x.id === u.id).headText = t.value; }, "uht" + u.id, live);
+  else if (u && id === "f-unote") mutate(d => { d.units.find(x => x.id === u.id).note = t.value; }, "unote" + u.id, live);
+  else if (p && id === "f-pname") mutate(d => { d.people.find(x => x.id === p.id).name = t.value; }, "pname" + p.id, live);
+  else if (p && id === "f-prank") mutate(d => { d.people.find(x => x.id === p.id).rank = t.value; }, "prank" + p.id, live);
+  else if (p && id === "f-pnote") mutate(d => { d.people.find(x => x.id === p.id).note = t.value; }, "pnote" + p.id, live);
+});
+document.addEventListener("change", e => {
+  const t = e.target, id = t.id, d = D();
+  if (id === "scen") { S.cur = t.value; S.sel = null; if (S.base === S.cur) S.base = null; savePref(); render({}); return; }
+  if (id === "f-base") { S.base = t.value; savePref(); render({}); return; }
+  if (!d || !S.sel) return;
+  const u = S.sel.k === "u" ? d.units.find(x => x.id === S.sel.id) : null;
+  const p = S.sel.k === "p" ? d.people.find(x => x.id === S.sel.id) : null;
+  if (u && id === "f-utype") mutate(d => { d.units.find(x => x.id === u.id).type = t.value; });
+  else if (u && id === "f-ustat") mutate(d => { d.units.find(x => x.id === u.id).status = t.value; });
+  else if (u && id === "f-uhead") mutate(d => { const x = d.units.find(y => y.id === u.id); if (t.value === "__text") { x.headId = null; x.headText = x.headText || ""; } else { x.headId = t.value || null; x.headText = t.value ? "" : ""; } if (t.value === "") x.headText = ""; });
+  else if (u && id === "f-upar") mutate(d => { moveUnit(d, u.id, t.value, "into"); });
+  else if (p && id === "f-pjob2") mutate(d => { d.people.find(x => x.id === p.id).job = t.value; });
+  else if (p && id === "f-punit") mutate(d => movePerson(d, p.id, t.value || null));
+  else if (p && id === "f-pvac") mutate(d => { d.people.find(x => x.id === p.id).vacant = t.checked; });
+  else if (p && t.dataset.flag) mutate(d => { const x = d.people.find(y => y.id === p.id); const f = t.dataset.flag; x.flags = t.checked ? [...new Set([...x.flags, f])] : x.flags.filter(z => z !== f); });
+});
+
+/* header controls */
+$("#sname").addEventListener("input", e => { const s = S.scen[S.cur]; if (!s || S.readOnly) return; s.name = e.target.value; markDirty(S.cur); const o = $("#scen").selectedOptions[0]; if (o) o.textContent = s.name || "이름 없는 안"; });
+$("#b-dup").onclick = () => { const s = S.scen[S.cur]; if (s) { addScenario(s.name + " 복사본", clone(s.data), s.note); toast("복제했습니다. 이제 복사본에서 작업합니다."); } };
+$("#b-new").onclick = () => addScenario("새 조직안", blankData());
+$("#b-del").onclick = e => { if (!S.scen[S.cur]) return; if (!arm(e.target, "sdel", "한 번 더 누르면 안 삭제")) return; const n = S.scen[S.cur].name; deleteScenario(S.cur); toast("‘" + n + "’ 안을 삭제했습니다."); };
+$("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
+$("#b-people").onclick = () => { S.showPeople = !S.showPeople; savePref(); render({keepPanel:true}); };
+$("#b-moves").onclick = () => { S.showMoves = !S.showMoves; savePref(); if (S.showMoves && !diffNow()) toast("비교할 기준안이 필요합니다. ‘변경사항’ 탭에서 기준안을 고르세요."); render({keepPanel:true}); };
+$("#b-cmp").onclick = () => { S.compare = !S.compare; if (S.compare && !diffNow()) toast("비교할 다른 안이 필요합니다. ‘복제’로 안을 하나 더 만드세요."); render({keepPanel:true}); };
+$("#b-zi").onclick = () => { S.zoom = Math.min(1.3, +(S.zoom + 0.1).toFixed(2)); savePref(); render({keepPanel:true}); };
+$("#b-zo").onclick = () => { S.zoom = Math.max(0.5, +(S.zoom - 0.1).toFixed(2)); savePref(); render({keepPanel:true}); };
+$("#q").addEventListener("input", e => { S.q = e.target.value; render({keepPanel:true}); const h = document.querySelector("#scroll .chip.hit"); if (h && S.q.trim()) h.scrollIntoView({block:"nearest", inline:"center"}); });
+$("#b-copysum").onclick = () => { const d = D(); if (d) copy(summary(d), "문구를 복사했습니다."); };
+$("#b-exp").onclick = () => {
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box"><b>내보내기</b><p class="muted mini">모든 조직안을 JSON 한 파일로 저장합니다. 나중에 ‘가져오기’로 다시 불러올 수 있습니다.</p>
+  <div class="row"><button class="btn primary" data-act="exp-file">JSON 파일 저장</button><button class="btn" data-act="exp-copy">JSON 복사</button><button class="btn" data-act="close-modal" style="margin-left:auto">닫기</button></div></div></div>`;
+};
+$("#b-imp").onclick = openImport;
+$("#b-endprev").onclick = endPreview;
+function fmtDate(t){ if (!t) return ""; const d = new Date(t); return d.getFullYear() + "." + String(d.getMonth()+1).padStart(2,"0") + "." + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
+function normPub(p){ if (p && p.data) p.data = normalize(p.data); return p; }
+function openPublish(){
+  if (!pubRef) { toast("이 화면에서는 공개 기능을 쓸 수 없습니다."); return; }
+  const sc = S.scen[S.cur]; if (!sc) return;
+  const df = diffNow(), cur = S.pubOwn;
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box"><b>경영진 공개</b>
+   <div class="pubinfo">${cur ? `현재 공개본: <b>${esc(cur.name)}</b> · ${fmtDate(cur.publishedAt)}` : "아직 공개한 조직도가 없습니다."}</div>
+   <p class="mini">지금 보고 있는 <b>‘${esc(sc.name)}’</b>을(를) 공개본으로 올립니다. 공유받은 사람은 편집 도구 없이 이 공개본 한 장만 봅니다.</p>
+   <label class="mini"><input type="checkbox" id="m-pubdiff"${df ? " checked" : " disabled"}> ${df ? `‘${esc(S.scen[S.base].name)}’ 대비 변경사항·부서이동(↔) 표시도 함께 공개` : "비교 기준안이 없어 변경사항은 빠집니다"}</label>
+   <p class="muted mini">공개본은 누른 시점 그대로 고정됩니다. 이후 고친 내용은 다시 공개해야 반영됩니다. 승진심사대상(■) 표시, 개인 메모, 미배치 인원은 공개본에서 빠집니다.</p>
+   <p class="muted mini">공유 메뉴에서 경영진을 <b>뷰어(Viewer)</b>로 추가하세요. 편집자로 추가하면 작업 중인 안이 모두 보입니다.</p>
+   <div class="row"><button class="btn primary" data-act="pub-do">공개하기</button>${cur ? `<button class="btn" data-act="pub-preview">경영진 화면 미리보기</button><button class="btn danger" data-act="pub-stop">공개 중지</button>` : ""}<button class="btn" data-act="close-modal" style="margin-left:auto">닫기</button></div></div></div>`;
+}
+async function publishCurrent(withDiff){
+  const sc = S.scen[S.cur]; if (!sc) return;
+  const data = clone(sc.data);
+  data.people = data.people.filter(p => p.unit).map(p => Object.assign(p, {note:"", flags:(p.flags || []).filter(f => f !== "review")}));
+  const df = withDiff ? diffNow() : null;
+  const doc = {name: sc.name, baseName: df ? S.scen[S.base].name : "", publishedAt: Date.now(), data, diff: df ? {units: df.units, people: df.people, rows: df.rows, from: df.from, tag: df.tag} : null};
+  try { await pubRef.set(doc); S.pubOwn = normPub(clone(doc)); $("#modal-root").innerHTML = ""; toast("‘" + sc.name + "’을(를) 공개했습니다. 미리보기는 경영진 공개 버튼에서 할 수 있습니다."); }
+  catch (e) { toast("공개하지 못했습니다. 잠시 후 다시 시도해 주세요."); }
+}
+function startPreview(){ if (!S.pubOwn) return; roSaved = S.readOnly; S.view = true; S.preview = true; S.readOnly = true; S.pub = S.pubOwn; S.tab = S.pub.diff ? "diff" : "table"; S.sel = null; $("#modal-root").innerHTML = ""; render({}); }
+function endPreview(){ S.view = false; S.preview = false; S.readOnly = roSaved; S.pub = null; S.tab = "edit"; render({}); }
+function bootViewer(){
+  S.view = true; S.readOnly = true; S.tab = "diff"; render({});
+  setStatus("보기 전용");
+  pubRef.onSnapshot(s => { S.mode = "db"; S.pub = s.exists ? normPub(clone(s.data())) : null; if (S.pub && !S.pub.diff) S.tab = "table"; render({}); }, () => setStatus("연결이 끊겼습니다. 새로고침해 주세요.", true));
+}
+function exportJson(){ return JSON.stringify({app:"org-sandbox", version:1, exportedAt:new Date().toISOString(), scenarios:S.scen}, null, 1); }
+async function exportFile(){
+  const dt = new Date(), f = "조직도샌드박스_" + dt.getFullYear() + String(dt.getMonth()+1).padStart(2,"0") + String(dt.getDate()).padStart(2,"0") + ".json";
+  if (!downloads) { try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([exportJson()], {type:"application/json"})); a.download = f; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); $("#modal-root").innerHTML = ""; toast("파일을 저장했습니다. 다운로드 폴더를 확인하세요."); } catch (e) { toast("파일을 저장하지 못했습니다. ‘JSON 복사’를 이용하세요."); } return; }
+  try { await downloads.save({filename: f, data: exportJson()}); $("#modal-root").innerHTML = ""; } catch (e) { toast("파일을 저장하지 못했습니다. ‘JSON 복사’를 이용하세요."); }
+}
+function openImport(){
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box"><b>가져오기</b><p class="muted mini">내보낸 JSON 파일을 고르거나 내용을 붙여넣으세요. 가져온 안은 새 안으로 추가되며 기존 안은 그대로 남습니다.</p>
+  <input type="file" id="m-file" accept=".json,application/json"><textarea id="m-json" placeholder='{"app":"org-sandbox", ...}'></textarea>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">취소</button><button class="btn primary" data-act="do-import">가져오기</button></div></div></div>`;
+  $("#m-file").addEventListener("change", ev => { const f = ev.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $("#m-json").value = r.result; }; r.readAsText(f); });
+}
+function doImport(){
+  let o; try { o = JSON.parse($("#m-json").value); } catch (e) { toast("JSON 형식이 올바르지 않습니다. 내보낸 파일 내용을 그대로 넣어 주세요."); return; }
+  const list = o && o.scenarios ? Object.values(o.scenarios) : (o && o.units ? [{name:"가져온 안", data:o}] : (o && o.data ? [o] : []));
+  if (!list.length) { toast("조직안을 찾지 못했습니다."); return; }
+  list.forEach(s => addScenario((s.name || "가져온 안"), clone(s.data), s.note));
+  $("#modal-root").innerHTML = ""; toast(list.length + "개 안을 가져왔습니다.");
+}
+
+/* ---------- drag & drop ---------- */
+let drag = null, dz = null;
+function clearDz(){ if (dz) { dz.el.classList.remove("dz-into","dz-before","dz-after"); dz = null; } }
+document.addEventListener("dragstart", e => {
+  if (S.readOnly) { e.preventDefault(); return; }
+  const c = e.target.closest && e.target.closest("[data-pid]");
+  if (c) { drag = {k:"p", id:c.dataset.pid}; }
+  else { const u = e.target.closest && e.target.closest(".unit[data-uid]"); if (!u || u.classList.contains("lv-root")) { e.preventDefault(); return; } drag = {k:"u", id:u.dataset.uid}; }
+  try { e.dataTransfer.setData("text/plain", drag.id); e.dataTransfer.effectAllowed = "move"; } catch (x) {}
+});
+function dropTarget(e){
+  const d = D(); if (!drag || !d) return null;
+  const tray = e.target.closest("#tray");
+  if (tray) return drag.k === "p" ? {el: tray, pos:"tray"} : null;
+  const el = e.target.closest("#scroll .unit[data-uid], #pane .unit[data-uid]"); if (!el) return null;
+  const tid = el.dataset.uid;
+  if (drag.k === "p") return {el, id: tid, pos:"into"};
+  if (tid === drag.id || subtree(d, drag.id).includes(tid)) return null;
+  if (el.classList.contains("lv-root")) return {el, id: tid, pos:"into"};
+  const r = el.getBoundingClientRect(); let pos = "into";
+  if (el.classList.contains("lv-div")) { const x = e.clientX - r.left; if (x < r.width * .22) pos = "before"; else if (x > r.width * .78) pos = "after"; }
+  else { const y = e.clientY - r.top, edge = Math.min(14, r.height * .3); if (y < edge) pos = "before"; else if (y > r.height - edge) pos = "after"; }
+  return {el, id: tid, pos};
+}
+document.addEventListener("dragover", e => {
+  const t = dropTarget(e);
+  if (!t) { clearDz(); return; }
+  e.preventDefault(); try { e.dataTransfer.dropEffect = "move"; } catch (x) {}
+  const cls = t.pos === "tray" ? "dz-into" : "dz-" + t.pos;
+  if (dz && dz.el === t.el && dz.cls === cls) return;
+  clearDz(); t.el.classList.add(cls); dz = {el: t.el, cls};
+});
+document.addEventListener("drop", e => {
+  const t = dropTarget(e); clearDz();
+  if (!t) return; e.preventDefault();
+  const dr = drag; drag = null;
+  if (dr.k === "p") mutate(d => movePerson(d, dr.id, t.pos === "tray" ? null : t.id));
+  else mutate(d => { moveUnit(d, dr.id, t.id, t.pos); });
+});
+document.addEventListener("dragend", () => { drag = null; clearDz(); });
+
+/* ---------- boot (웹 버전: Supabase 저장) ---------- */
+// ▼ 설정: 예산 대시보드와 같은 Supabase 프로젝트를 씁니다. anon public 키만 붙여 넣으세요.
+const SB_URL = "https://cyihgafxlbsxchmabcow.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5aWhnYWZ4bGJzeGNobWFiY293Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2OTEyODcsImV4cCI6MjEwODI2NzI4N30.nW8HbGXKn3mt6Ex8ZderYPF4AuZLZQePTQnZp-dL5Xo";
+const ID_DOMAIN = "atec.local";
+// ▲ 설정 끝
+let sb = null, me = null;
+function rowToScen(r){ return {name: r.name || "", note: r.note || "", order: r.sort_order ?? 0, updatedAt: Date.parse(r.updated_at) || 0, data: normalize(r.data)}; }
+function sbErr(error){ return {code: /permission|policy|row-level|denied/i.test(error.message || "") ? "invalid_argument" : "unavailable", message: error.message}; }
+function makeCol(){
+  return { doc: id => ({
+    set: async sc => { const {error} = await sb.from("org_scenarios").upsert({id, name: sc.name || "", note: sc.note || "", sort_order: sc.order ?? 0, data: sc.data, updated_at: new Date().toISOString(), updated_by: me.email}); if (error) throw sbErr(error); },
+    delete: async () => { const {error} = await sb.from("org_scenarios").delete().eq("id", id); if (error) throw sbErr(error); }
+  }) };
+}
+function showLogin(msg){ $("#login").hidden = false; $("#l-err").textContent = msg || ""; setTimeout(() => $("#l-id").focus(), 0); }
+$("#login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const id = $("#l-id").value.trim(), pw = $("#l-pw").value;
+  if (!id || !pw) { $("#l-err").textContent = "아이디와 비밀번호를 모두 입력하세요."; return; }
+  const email = id.includes("@") ? id : id + "@" + ID_DOMAIN;
+  $("#l-err").textContent = "확인 중…";
+  const { data, error } = await sb.auth.signInWithPassword({email, password: pw});
+  if (error) { $("#l-err").textContent = "아이디 또는 비밀번호가 맞지 않습니다."; return; }
+  $("#login").hidden = true; afterLogin(data.user);
+});
+$("#b-logout").onclick = async () => { try { await sb.auth.signOut(); } catch (e) {} location.reload(); };
+async function afterLogin(user){
+  me = user; $("#b-logout").hidden = false;
+  const { data: mem } = await sb.from("org_members").select("role").eq("email", user.email).maybeSingle();
+  if (!mem) { S.mode = "db"; S.readOnly = true; render({}); setStatus("이 계정에는 조직도 권한이 없습니다. 관리자에게 요청하세요.", true); return; }
+  S.readOnly = mem.role !== "editor"; document.body.classList.toggle("ro", S.readOnly);
+  col = makeCol();
+  const { data: rows, error } = await sb.from("org_scenarios").select("*");
+  if (error) { setStatus("자료를 불러오지 못했습니다. 새로고침해 주세요.", true); return; }
+  S.mode = "db"; rows.forEach(r => { S.scen[r.id] = rowToScen(r); });
+  if (S.readOnly) setStatus("보기 전용 · " + user.email.split("@")[0]); else idleStatus();
+  render({});
+  sb.channel("org-scenarios").on("postgres_changes", {event: "*", schema: "public", table: "org_scenarios"}, p => {
+    const id = (p.new && p.new.id) || (p.old && p.old.id);
+    if (!id || dirty.has(id) || saving.has(id)) return;
+    if (p.eventType === "DELETE") { if (!S.scen[id]) return; delete S.scen[id]; }
+    else { const nx = rowToScen(p.new); if (S.scen[id] && S.scen[id].name === nx.name && JSON.stringify(S.scen[id].data) === JSON.stringify(nx.data)) return; S.scen[id] = nx; }
+    fixSel();
+    const ae = document.activeElement, inPane = ae && ae.closest && ae.closest("#pane") && ae.matches("input,textarea");
+    render(inPane ? {keepPanel: true} : {});
+  }).subscribe();
+}
+async function boot(){
+  S.mode = "loading"; render({});
+  if (!window.supabase) { setStatus("서버 연결 도구를 불러오지 못했습니다. 인터넷 연결을 확인하세요.", true); return; }
+  if (SB_KEY.startsWith("여기에")) { setStatus("설정 필요: 파일 안의 SB_KEY에 Supabase 키를 넣어 주세요.", true); return; }
+  sb = window.supabase.createClient(SB_URL, SB_KEY);
+  setStatus("로그인이 필요합니다");
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) afterLogin(data.session.user); else showLogin();
+}
+boot();
+})();
+</script>
+
+</body></html>
