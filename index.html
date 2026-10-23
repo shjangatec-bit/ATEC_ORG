@@ -451,7 +451,7 @@ function diffNow(){ if (S.view) return S.pub && S.pub.diff ? Object.assign({move
 function render(o){
   o = o || {};
   if (!S.view) pickDefaults();
-  if (!S.view && S.cur !== S.lastCur) { S.lastCur = S.cur; S.showMoves = isNowScen(S.cur) ? false : (typeof pref.showMoves === "boolean" ? pref.showMoves : true); }
+  if (!S.view && S.cur !== S.lastCur) { S.lastCur = S.cur; S.showMoves = !isNowScen(S.cur); }
   renderHeader();
   const d = D();
   if (!d) { renderEmpty(); return; }
