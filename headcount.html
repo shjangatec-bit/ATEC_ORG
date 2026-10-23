@@ -86,6 +86,10 @@ td.k-plan{background:color-mix(in srgb,var(--j-sales) 14%,transparent)}
 td.fail{color:var(--accent);font-weight:700}
 td.sp{color:var(--muted);font-style:italic}
 td.selm{outline:2px solid var(--accent);outline-offset:-2px}
+.vt{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.vtb{border:0;background:var(--surface);padding:3px 10px;font-size:12px;cursor:pointer;color:var(--muted)}
+.vtb+.vtb{border-left:1px solid var(--line)}
+.vtb.on{background:var(--ink);color:var(--surface);font-weight:600}
 td .dl{display:block;font-size:10px;line-height:1.1;font-weight:600;letter-spacing:.02em}
 .dl .p{color:var(--ok)} .dl .m{color:var(--accent)}
 td.mis{box-shadow:inset 3px 0 0 var(--warn)}
@@ -206,9 +210,9 @@ const ym = k => { const [y, m] = k.split("-"); return y + "." + m; };
 const ymK = k => { const [y, m] = k.split("-"); return y + "년 " + (+m) + "월"; };
 const stable = o => JSON.stringify(o, (k, v) => v && typeof v === "object" && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => (a[x] = v[x], a), {}) : v);
 let pref = {}; try { pref = JSON.parse(localStorage.getItem("hc.pref") || "{}") || {}; } catch (e) {}
-const savePref = () => { try { localStorage.setItem("hc.pref", JSON.stringify({cur: S.cur, cmp: S.cmp})); } catch (e) {} };
+const savePref = () => { try { localStorage.setItem("hc.pref", JSON.stringify({cur: S.cur, cmp: S.cmp, view: S.view})); } catch (e) {} };
 
-const S = {scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
+const S = {view: pref.view || "rate", scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
 const hist = {}, dirty = new Set(), saving = new Set(), timers = {};
 let sb = null, me = null, chan = null;
 
@@ -351,8 +355,11 @@ function tableHtml(d, r, c){
   };
   const avgCell = k => `<td class="c${selc(k)}" data-m="${k}">${r.avg[k] == null ? "" : fmtN(r.avg[k])}</td>`;
   const rateCell = k => { const v = r.rate[k]; if (v == null) return `<td></td>`; const sp = k <= d.specialUntil, fail = !sp && v < d.target; const cv = c && c.rate[k] != null ? " · 비교안 " + pct(c.rate[k]) : ""; return `<td class="c${sp ? " sp" : ""}${fail ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + (sp ? " · 설립 초기 예외 산식(" + d.specialBase + "명 기준)" : " · 전년 같은 달 대비") + cv)}">${pct(v, 1)}</td>`; };
-  return `<h3><span>월별 표</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="sw evt"></span>입퇴사 예정</span><span><span class="sw plan"></span>계획 보정</span>${Object.keys(mis).length ? `<span style="color:var(--warn)">▎기록 불일치 ${Object.keys(mis).length}개월</span>` : ""}<span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
-  <div class="tblwrap"><table><thead>${head}</thead><tbody>${sec("① 월말 인원 (말일 재직, 건강보험 가입자)", cntCell)}${sec("② 직전 " + d.window + "개월 평균", avgCell)}${sec("③ 고용증가율", rateCell)}</tbody></table></div>
+  const V = [["cnt","월말 인원"],["avg","6개월 평균"],["rate","증가율"],["all","전체"]];
+  const tabs = `<span class="vt" role="tablist">${V.map(([v, t]) => `<button class="vtb${S.view === v ? " on" : ""}" data-act="view" data-v="${v}" role="tab" aria-selected="${S.view === v}">${t}</button>`).join("")}</span>`;
+  const body = (S.view === "cnt" || S.view === "all" ? sec("① 월말 인원 (말일 재직, 건강보험 가입자)", cntCell) : "") + (S.view === "avg" || S.view === "all" ? sec("② 직전 " + d.window + "개월 평균", avgCell) : "") + (S.view === "rate" || S.view === "all" ? sec("③ 고용증가율", rateCell) : "");
+  return `<h3><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">월별 표 ${tabs}</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="sw evt"></span>입퇴사 예정</span><span><span class="sw plan"></span>계획 보정</span>${Object.keys(mis).length ? `<span style="color:var(--warn)">▎기록 불일치 ${Object.keys(mis).length}개월</span>` : ""}<span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
+  <div class="tblwrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
   <p class="muted mini" style="margin:8px 0 0">칸을 누르면 오른쪽에서 그 달의 인원·입퇴사를 고칠 수 있습니다.</p>`;
 }
 function monthHtml(d, r){
@@ -416,6 +423,7 @@ function act(name, el){
     case "close-modal": $("#modal-root").innerHTML = ""; break;
     case "do-import": doImport(); break;
     case "exp-file": exportFile(); break;
+    case "view": S.view = el.dataset.v; savePref(); render(); break;
     case "bulk-open": openBulk(); break;
     case "bulk-apply": bulkApply(); break;
     case "ev-add": {
