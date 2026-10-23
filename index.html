@@ -271,7 +271,7 @@ const STCLS = {"변경":"st-chg","신설":"st-new","외주":"st-out"};
 const JOBS = ["영업","사무","연구","기능"];
 const JOBCLS = {"영업":"j-s","사무":"j-o","연구":"j-r","기능":"j-t"};
 const RANKS = ["대표이사","상무","이사","수석","책임","선임","사원"];
-const FLAGS = [["promo","▲","승진"],["newlead","●","신규선임"],["review","■","승진심사대상"],["move","↔","부서이동"]];
+const FLAGS = [["promo","▲","승진"],["newlead","●","신규선임"],["review","■","승진심사대상"]];
 const LSKEY = "orgSandbox.v1", PREFKEY = "orgSandbox.pref";
 
 const S = {present:false, showRank:false, view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"diff", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
@@ -406,6 +406,17 @@ function pickDefaults(){
 }
 
 /* ---------- diff ---------- */
+function linkPeople(B, C){
+  const bp = pm(B), cp = pm(C), c2b = {}, b2c = {};
+  const k = p => String(p.name || "").replace(/\(.*?\)/g, "").replace(/\s/g, "");
+  C.people.forEach(p => { if (bp[p.id]) { c2b[p.id] = bp[p.id]; b2c[p.id] = p; } });
+  const restB = {}, dupB = new Set();
+  B.people.forEach(b => { if (cp[b.id] || b.vacant) return; const key = k(b); if (restB[key]) dupB.add(key); restB[key] = b; });
+  const usedC = {};
+  C.people.forEach(p => { if (c2b[p.id] || p.vacant) return; const key = k(p); if (!restB[key] || dupB.has(key)) return; if (usedC[key]) { dupB.add(key); return; } usedC[key] = p; });
+  Object.entries(usedC).forEach(([key, p]) => { if (dupB.has(key)) return; const b = restB[key]; c2b[p.id] = b; b2c[b.id] = p; });
+  return {c2b, b2c};
+}
 function computeDiff(B, C){
   const bu = um(B), cu = um(C), bp = pm(B), cp = pm(C);
   const r = {units:[], people:[], tag:{}, moved:new Set(), from:{}, rows:[]};
@@ -421,12 +432,13 @@ function computeDiff(B, C){
     if (ch.length) { r.units.push({k:"chg", t:u.name + " · " + ch.join(" / ")}); if (structural) r.tag[u.id] = {k:"chg", t:"변경"}; }
   });
   B.units.forEach(b => { if (!cu[b.id]) r.units.push({k:"del", t:"폐지 · " + b.name}); });
+  const lk = linkPeople(B, C);
   C.people.forEach(p => {
-    const b = bp[p.id];
+    const b = lk.c2b[p.id];
     if (!b) { r.people.push({k:"add", t:(p.vacant ? "채용예정 추가" : "추가") + " · " + pname(p) + " → " + unitName(C, p.unit)}); r.moved.add(p.id); return; }
     if (b.unit !== p.unit) { r.people.push({k:"mv", t:pname(p) + " · " + unitName(B, b.unit) + " → " + unitName(C, p.unit)}); r.moved.add(p.id); if (b.unit && p.unit) r.from[p.id] = unitName(B, b.unit); }
   });
-  B.people.forEach(b => { if (!cp[b.id]) r.people.push({k:"rm", t:"제외 · " + pname(b) + " (" + unitName(B, b.unit) + ")"}); });
+  B.people.forEach(b => { if (!lk.b2c[b.id]) r.people.push({k:"rm", t:"제외 · " + pname(b) + " (" + unitName(B, b.unit) + ")"}); });
   const bR = rootOf(B), cR = rootOf(C);
   const ids = []; kids(B, bR.id).forEach(u => ids.push(u.id)); kids(C, cR.id).forEach(u => { if (!ids.includes(u.id)) ids.push(u.id); });
   ids.forEach(id => r.rows.push({name: cu[id] ? cu[id].name : bu[id].name, b: bu[id] ? count(B, id).n : null, c: cu[id] ? count(C, id).n : null}));
@@ -497,7 +509,7 @@ function chipHtml(d, p, u, diff){
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
   const showBirth = !S.readOnly && !S.view;
   const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
-  const mv = from || (S.showMoves && (p.flags || []).includes("move"));
+  const mv = !!from;
   const mk = marks(p).replace("↔", "");
   return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}</span>`;
 }
@@ -557,7 +569,7 @@ function unitPane(d, u){
   const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null;
   let mvHtml = "";
   if (B) {
-    const bp = pm(B), bU = um(B)[u.id], L = [];
+    const lk = linkPeople(B, d), bp = lk.c2b, bU = um(B)[u.id], L = [];
     if (!bU) L.push("<b>신설</b> · " + esc(unitName(d, u.parent)) + " 아래");
     else {
       if (bU.name !== u.name) L.push("<b>명칭</b> · " + esc(bU.name) + " → " + esc(u.name));
@@ -567,9 +579,9 @@ function unitPane(d, u){
     }
     const tin = mine.filter(p => bp[p.id] && bp[p.id].unit && bp[p.id].unit !== u.id);
     const tnew = mine.filter(p => !bp[p.id] || !bp[p.id].unit);
-    const tout = B.people.filter(b => b.unit === u.id && !mine.some(p => p.id === b.id));
+    const tout = B.people.filter(b => b.unit === u.id && !(lk.b2c[b.id] && lk.b2c[b.id].unit === u.id));
     if (tin.length) L.push(`<b>전입 ${tin.length}</b> · ` + tin.map(p => esc(pname(p)) + " ← " + esc(unitName(B, bp[p.id].unit))).join(", "));
-    if (tout.length) L.push(`<b>전출 ${tout.length}</b> · ` + tout.map(b => { const now = d.people.find(p => p.id === b.id); return esc(pname(b)) + " → " + (now ? esc(unitName(d, now.unit)) : "명단 제외"); }).join(", "));
+    if (tout.length) L.push(`<b>전출 ${tout.length}</b> · ` + tout.map(b => { const now = lk.b2c[b.id]; return esc(pname(b)) + " → " + (now ? esc(unitName(d, now.unit)) : "명단 제외"); }).join(", "));
     if (tnew.length) L.push(`<b>충원 ${tnew.length}</b> · ` + tnew.map(p => esc(pname(p)) + (bp[p.id] ? " (미배치에서)" : "")).join(", "));
     if (L.length) mvHtml = `<h4>변경사항 (‘${esc(S.scen[S.base].name)}’ 대비)</h4>` + L.map(x => `<p class="mvlist">${x}</p>`).join("");
   }
@@ -610,7 +622,7 @@ function personPane(d, p){
   <div class="fld"><label for="f-pbirth">생년</label><input id="f-pbirth" inputmode="numeric" maxlength="4" value="${esc(p.birth || "")}" placeholder="예: 1985"></div>
   <div class="fld"><label for="f-pjob2">직군</label><select id="f-pjob2">${JOBS.map(j => `<option${j === p.job ? " selected" : ""}>${j}</option>`).join("")}</select></div>
   <div class="fld"><label for="f-punit">소속</label><select id="f-punit">${unitOptions(d, [], p.unit, true)}</select></div>
-  ${(() => { const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null; const b = B && B.people.find(x => x.id === p.id); if (!B) return ""; if (!b) return `<p class="mvlist muted">‘${esc(S.scen[S.base].name)}’에는 없는 인원입니다.</p>`; return b.unit === p.unit ? "" : `<p class="mvlist"><b>↔ 부서이동</b> · ${esc(unitName(B, b.unit))} → ${esc(unitName(d, p.unit))} <span class="muted">(‘${esc(S.scen[S.base].name)}’ 대비)</span></p>`; })()}
+  ${(() => { const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null; const b = B && linkPeople(B, d).c2b[p.id]; if (!B) return ""; if (!b) return `<p class="mvlist muted">‘${esc(S.scen[S.base].name)}’에는 없는 인원입니다.</p>`; return b.unit === p.unit ? "" : `<p class="mvlist"><b>↔ 부서이동</b> · ${esc(unitName(B, b.unit))} → ${esc(unitName(d, p.unit))} <span class="muted">(‘${esc(S.scen[S.base].name)}’ 대비)</span></p>`; })()}
   <div class="fld"><label>표시</label><div class="checks">${FLAGS.map(f => `<label><input type="checkbox" data-flag="${f[0]}"${p.flags.includes(f[0]) ? " checked" : ""}>${f[1]} ${f[2]}</label>`).join("")}<label><input type="checkbox" id="f-pvac"${p.vacant ? " checked" : ""}>채용예정</label></div></div>
   <div class="fld"><label for="f-pnote">메모</label><input id="f-pnote" value="${esc(p.note)}"></div>
   <h4>조직장</h4>
