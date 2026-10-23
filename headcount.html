@@ -211,7 +211,7 @@ const stable = o => JSON.stringify(o, (k, v) => v && typeof v === "object" && !A
 let pref = {}; try { pref = JSON.parse(localStorage.getItem("hc.pref") || "{}") || {}; } catch (e) {}
 const savePref = () => { try { localStorage.setItem("hc.pref", JSON.stringify({cur: S.cur, cmp: S.cmp, views: S.views})); } catch (e) {} };
 
-const S = {open: {}, views: Array.isArray(pref.views) && pref.views.length ? pref.views : ["rate"], scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
+const S = {editEv: null, open: {}, views: Array.isArray(pref.views) && pref.views.length ? pref.views : ["rate"], scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
 const hist = {}, dirty = new Set(), saving = new Set(), timers = {};
 let sb = null, me = null, chan = null;
 
@@ -403,7 +403,19 @@ function monthHtml(d, r){
 }
 function evRow(d, e){
   const past = e.date && e.date <= HC.lastDay(d.baseMonth) && !(e.type === "out" && e.date === HC.lastDay(d.baseMonth));
-  return `<div class="ev${past ? " past" : ""}" title="${past ? "기준월 이전이라 기준 인원에 이미 포함된 기록" : ""}"><span class="tg ${e.type}">${e.type === "in" ? "입사" : "퇴사"}</span><span class="d" style="width:auto;min-width:64px">${esc(dstr(e))}</span><span class="nm">${esc(e.name || "(이름 없음)")}${e.note ? ` <span class="muted">· ${esc(e.note)}</span>` : ""}</span>${S.readOnly ? "" : `<button class="x" data-act="ev-del" data-id="${esc(e.id)}" aria-label="삭제" title="삭제">×</button>`}</div>`;
+  if (!S.readOnly && S.editEv === e.id) return `<div class="ev evedit" data-eid="${esc(e.id)}" style="flex-wrap:wrap;gap:6px">
+    <select class="ee-type" style="flex:0 0 68px"><option value="in"${e.type === "in" ? " selected" : ""}>입사</option><option value="out"${e.type === "out" ? " selected" : ""}>퇴사</option></select>
+    <input class="ee-name" value="${esc(e.name || "")}" placeholder="이름" style="flex:1 1 70px;min-width:0">
+    <input class="ee-date" value="${esc(e.date || "")}" placeholder="2026-03-02 또는 2026-03" style="flex:1 1 110px;min-width:0">
+    <input class="ee-note" value="${esc(e.note || "")}" placeholder="메모" style="flex:1 1 100%;min-width:0">
+    <span style="display:flex;gap:6px;margin-left:auto"><button class="btn sm" data-act="ev-cancel">취소</button><button class="btn sm primary" data-act="ev-save" data-id="${esc(e.id)}">저장</button></span></div>`;
+  return `<div class="ev${past ? " past" : ""}"${S.readOnly ? "" : ` data-act="ev-edit" data-id="${esc(e.id)}" style="cursor:pointer"`} title="${S.readOnly ? "" : "눌러서 고치기"}${past ? (S.readOnly ? "" : " · ") + "기준월 이전 기록(실적 숫자는 그대로)" : ""}"><span class="tg ${e.type}">${e.type === "in" ? "입사" : "퇴사"}</span><span class="d" style="width:auto;min-width:64px">${esc(dstr(e))}</span><span class="nm">${esc(e.name || "(이름 없음)")}${e.note ? ` <span class="muted">· ${esc(e.note)}</span>` : ""}</span>${S.readOnly ? "" : `<button class="x" data-act="ev-del" data-id="${esc(e.id)}" aria-label="삭제" title="삭제">×</button>`}</div>`;
+}
+function parseDateLoose(x){
+  const t = String(x || "").trim(); const m = t.match(/^(\d{4})[.\-\/]?(\d{1,2})(?:[.\-\/]?(\d{1,2}))?\.?$/);
+  if (!m || +m[2] < 1 || +m[2] > 12 || (m[3] && (+m[3] < 1 || +m[3] > 31))) return null;
+  const ymS = m[1] + "-" + String(m[2]).padStart(2, "0"); if (!m[3]) return ymS;
+  const dd = ymS + "-" + String(m[3]).padStart(2, "0"); return dd <= HC.lastDay(ymS) ? dd : null;
 }
 function eventsHtml(d){
   const evs = d.events.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
@@ -456,6 +468,14 @@ function act(name, el){
       S.sel = HC.monthOf(date); render(); break;
     }
     case "quick-in": case "quick-out": { const k = el.dataset.m; $("#f-etype").value = name === "quick-in" ? "in" : "out"; $("#f-edate").value = name === "quick-in" ? k + "-01" : HC.lastDay(k).slice(0, 8) + "15"; $("#f-ename").focus(); toast("이름과 날짜를 확인하고 '추가'를 누르세요."); break; }
+    case "ev-edit": S.editEv = el.dataset.id; render(); setTimeout(() => { const n = document.querySelector(".evedit .ee-name"); if (n) n.focus(); }, 0); break;
+    case "ev-cancel": S.editEv = null; render(); break;
+    case "ev-save": {
+      const row = el.closest(".evedit"), id = el.dataset.id, nd = parseDateLoose(row.querySelector(".ee-date").value);
+      if (!nd) { toast("날짜를 2026-03-02 또는 2026-03 형식으로 넣어 주세요."); row.querySelector(".ee-date").focus(); return; }
+      const v = {type: row.querySelector(".ee-type").value, name: row.querySelector(".ee-name").value.trim(), date: nd, note: row.querySelector(".ee-note").value.trim()};
+      S.editEv = null; mutate(d => { const e = d.events.find(x => x.id === id); if (e) Object.assign(e, v); return "기록을 고쳤습니다."; }); break;
+    }
     case "ev-del": { if (S.readOnly) return; const id = el.dataset.id; mutate(d => { d.events = d.events.filter(x => x.id !== id); }); break; }
     case "apply-plan": { const s = suggest(d, HC.calc(d)); if (!s.near.length) return; mutate(d => { s.near.forEach(x => { d.adjust[x.H] = (+d.adjust[x.H] || 0) + x.n; }); return "앞으로 " + HORIZON + "개월 일정(+" + s.nearSum + "명)을 계획 보정에 넣었습니다. 되돌리기(↶)로 취소할 수 있습니다."; }); break; }
     case "apply-sugg": { const h = el.dataset.h, n = +el.dataset.n; mutate(d => { d.adjust[h] = (+d.adjust[h] || 0) + n; return ym(h) + " 계획에 +" + n + "명을 넣었습니다. 되돌리기(↶)로 취소할 수 있습니다."; }); break; }
@@ -503,9 +523,13 @@ $("#b-dup").onclick = () => { const s = S.scen[S.cur]; if (s) { addScen(s.name +
 $("#b-del").onclick = e => { if (!S.scen[S.cur] || S.readOnly) return; if (!armed(e.target, "한 번 더 누르면 삭제")) return; delScen(S.cur); };
 $("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
 document.addEventListener("keydown", e => {
+  const er = e.target.closest && e.target.closest(".evedit");
+  if (er && e.key === "Enter") { e.preventDefault(); er.querySelector('[data-act="ev-save"]').click(); return; }
+  if (er && e.key === "Escape") { S.editEv = null; render(); return; }
   if (e.target.matches("input, textarea, select")) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
   else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+  else if (e.key === "Escape" && S.editEv) { S.editEv = null; render(); }
   else if (e.key === "Escape") { if ($("#modal-root").innerHTML) $("#modal-root").innerHTML = ""; else if (S.sel) { S.sel = null; render(); } }
 });
 function parseBulk(text){
