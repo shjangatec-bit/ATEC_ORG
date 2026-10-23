@@ -298,7 +298,7 @@ function headLabel(d, u){
     if (!p) return "공석";
     const pre = p.unit === u.id ? "" : "겸) ";
     const mk = marks(p).replace(/[■↔]/g,"");
-    const nm = p.vacant ? "(신) " + (p.rank ? p.rank + " " : "") + "채용예정" : (p.rank ? p.rank + " " : "") + p.name;
+    const nm = p.vacant ? (p.rank ? p.rank + " " : "") + "채용예정" : (p.rank ? p.rank + " " : "") + p.name;
     return (mk ? mk + " " : "") + pre + nm;
   }
   return u.headText || "공석";
