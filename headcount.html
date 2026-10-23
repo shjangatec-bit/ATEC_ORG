@@ -427,29 +427,37 @@ function parseDateLoose(x){
   const dd = ymS + "-" + String(m[3]).padStart(2, "0"); return dd <= HC.lastDay(ymS) ? dd : null;
 }
 const rkey = n => String(n || "").replace(/\(.*?\)/g, "").replace(/\s/g, "");
-function rosterAt(d, bEnd){
-  const outBy = {}, inBy = {};
-  d.events.forEach(e => { if (!e.date || !e.name) return; const k = rkey(e.name);
-    if (e.type === "out" && e.date < bEnd && (!outBy[k] || e.date > outBy[k].date)) outBy[k] = e;
-    if (e.type === "in" && e.date <= bEnd && (!inBy[k] || e.date > inBy[k].date)) inBy[k] = e; });
-  const gone = p => outBy[rkey(p.name)] && !(inBy[rkey(p.name)] && inBy[rkey(p.name)].date > outBy[rkey(p.name)].date);
-  const seen = new Set(), list = [], left = [];
-  (d.roster || []).forEach((p, i) => { const k = rkey(p.name); if (seen.has(k)) return; seen.add(k); if (gone(p)) left.push({p, e: outBy[k]}); else list.push(Object.assign({i}, p)); });
-  Object.entries(inBy).forEach(([k, e]) => { if (!seen.has(k) && !(outBy[k] && outBy[k].date >= e.date)) list.push({name: e.name, unit: "", group: "신규 입사", joined: e}); });
-  return {list, left};
+const ROSTER_FROM = "2026-01";
+const effAt = (e, T) => e.type === "in" ? e.date <= T : e.date < T;
+function rosterFor(d, m){
+  const Eb = HC.lastDay(d.baseMonth), E = HC.lastDay(m), Ep = HC.lastDay(HC.addM(m, -1));
+  const st = new Map();
+  (d.roster || []).forEach((p, i) => { const k = rkey(p.name); if (!st.has(k)) st.set(k, {p: Object.assign({i}, p), on: true}); });
+  const evs = d.events.filter(e => e.date && e.name);
+  const get = (e, g) => { const k = rkey(e.name); let x = st.get(k); if (!x) { x = {p: {name: e.name, unit: "", group: g}, on: false}; st.set(k, x); } return x; };
+  if (E < Eb) evs.filter(e => effAt(e, Eb) && !effAt(e, E)).sort((a, b) => b.date.localeCompare(a.date)).forEach(e => { get(e, "이후 퇴사").on = e.type === "out"; });
+  else if (E > Eb) evs.filter(e => effAt(e, E) && !effAt(e, Eb)).sort((a, b) => a.date.localeCompare(b.date)).forEach(e => { get(e, "신규 입사").on = e.type === "in"; });
+  const list = [...st.values()].filter(x => x.on).map(x => x.p);
+  const chg = evs.filter(e => effAt(e, E) && !effAt(e, Ep)).sort((a, b) => a.date.localeCompare(b.date));
+  return {list, ins: chg.filter(e => e.type === "in"), outs: chg.filter(e => e.type === "out")};
 }
 function rosterHtml(d, r){
-  const {list, left} = rosterAt(d, HC.lastDay(d.baseMonth));
-  const total = list.length, base = r.cnt[d.baseMonth], diff = total - base, ed = S.rxEdit && !S.readOnly;
+  const sel = S.sel && S.sel >= ROSTER_FROM ? S.sel : null, m = sel || d.baseMonth, isBase = m === d.baseMonth;
+  const {list, ins, outs} = rosterFor(d, m);
+  const plan = m > d.baseMonth ? Object.entries(d.adjust).filter(([k, v]) => k > d.baseMonth && k <= m).reduce((a, [, v]) => a + (+v || 0), 0) : 0;
+  const total = list.length + plan, cnt = r.cnt[m], diff = cnt == null ? 0 : total - cnt, ed = S.rxEdit && !S.readOnly && isBase;
   const groups = {}; list.forEach(p => (groups[p.group || "기타"] = groups[p.group || "기타"] || []).push(p));
-  const chip = p => `<span class="rc" title="${esc(p.joined ? "입사 " + dstr(p.joined) : (p.unit || ""))}">${esc(p.name)}${ed && p.i != null ? ` <button class="x" data-act="rx-del" data-i="${p.i}" aria-label="빼기" title="명단에서 빼기">×</button>` : ""}</span>`;
+  const chip = p => `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${ed && p.i != null ? ` <button class="x" data-act="rx-del" data-i="${p.i}" aria-label="빼기" title="명단에서 빼기">×</button>` : ""}</span>`;
   const gl = [...new Set((d.roster || []).map(p => p.group).filter(Boolean))];
-  return `<div class="panel"><details id="d-roster"${S.open["d-roster"] ? " open" : ""}><summary>이번 달 명단 <span class="mini" style="color:${diff ? "var(--accent)" : "var(--muted)"}">(${ym(d.baseMonth)} · ${total}명${diff ? " · 기준월 인원 " + base + "명과 " + (diff > 0 ? "+" : "") + diff + "명 차이" : " · 기준월 인원과 일치"})</span></summary>
+  const evc = (es, sign, col) => es.map(e => `<span class="rc" style="color:${col}">${sign}${esc(e.name)} <span class="muted">${esc(dstr(e))}</span></span>`).join("");
+  const title = isBase ? "이번 달 명단" : "명단";
+  return `<div class="panel"><details id="d-roster"${S.open["d-roster"] || sel ? " open" : ""}><summary>${title} <span class="mini" style="color:${diff ? "var(--accent)" : "var(--muted)"}">(${ym(m)} · ${total}명${cnt == null ? "" : diff ? " · 표 인원 " + cnt + "명과 " + (diff > 0 ? "+" : "") + diff + "명 차이" : " · 표 인원과 일치"})</span></summary>
     <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
-    ${S.readOnly ? "" : `<div class="row" style="justify-content:flex-end"><button class="btn sm" data-act="rx-edit">${ed ? "고치기 끝" : "명단 고치기"}</button></div>`}
+    ${isBase && !S.readOnly ? `<div class="row" style="justify-content:flex-end"><button class="btn sm" data-act="rx-edit">${ed ? "고치기 끝" : "명단 고치기"}</button></div>` : ""}
+    ${ins.length || outs.length ? `<div><div class="mini"><b>이 달 변동</b> <span class="muted">${ins.length ? "입사 " + ins.length + "명" : ""}${ins.length && outs.length ? " · " : ""}${outs.length ? "퇴사 " + outs.length + "명" : ""}</span></div><div class="rcs">${evc(ins, "+", "var(--ok)")}${evc(outs, "−", "var(--accent)")}</div></div>` : ""}
+    ${plan ? `<div class="mini"><b>계획</b> <span class="muted">+${plan}명 (이름 미정)</span></div>` : ""}
     ${Object.entries(groups).map(([g, ps]) => `<div><div class="mini"><b>${esc(g)}</b> <span class="muted">${ps.length}명</span></div><div class="rcs">${ps.map(chip).join("")}</div></div>`).join("") || `<span class="muted mini">명단이 비어 있습니다.</span>`}
     ${ed ? `<div class="row"><input id="f-rxname" placeholder="이름" style="flex:1 1 70px"><input id="f-rxunit" list="rx-groups" placeholder="소속" style="flex:1 1 90px"><datalist id="rx-groups">${gl.map(g => `<option value="${esc(g)}">`).join("")}</datalist><button class="btn sm" data-act="rx-add">추가</button></div>` : ""}
-    ${left.length ? `<div><div class="mini"><b>퇴사 기록으로 제외</b> <span class="muted">${left.length}명</span></div><div class="rcs">${left.map(x => `<span class="rc" style="text-decoration:line-through;color:var(--muted)">${esc(x.p.name)} <span class="muted">${esc(dstr(x.e))}</span></span>`).join("")}</div></div>` : ""}
     </div></details></div>`;
 }
 function eventsHtml(d){
@@ -533,9 +541,10 @@ function moveBase(d, nb){
   const r = HC.calc(d), ob = d.baseMonth;
   if (nb > ob) {
     for (let m = ob; m < nb; m = HC.addM(m, 1)) d.actual[m] = r.cnt[m];
-    const rs = rosterAt(d, HC.lastDay(nb)); d.roster = rs.list.map(p => ({name: p.name, unit: p.unit || "", group: p.group || "기타"}));
+    const rs = rosterFor(d, nb); d.roster = rs.list.map(p => ({name: p.name, unit: p.unit || "", group: p.group || "기타"}));
     d.baseCount = r.cnt[nb]; Object.keys(d.adjust).forEach(k => { if (k <= nb) delete d.adjust[k]; });
   } else {
+    const rs = rosterFor(d, nb); d.roster = rs.list.map(p => ({name: p.name, unit: p.unit || "", group: p.group || "기타"}));
     d.baseCount = d.actual[nb] ?? r.cnt[nb] ?? d.baseCount;
     Object.keys(d.actual).forEach(k => { if (k >= nb) delete d.actual[k]; });
   }
