@@ -271,19 +271,19 @@ function recon(d, r){
   return out;
 }
 const dstr = e => { const s = (e.date || "").replace(/-/g, "."); return e.type === "out" && e.date && e.date.length === 10 && e.date === HC.lastDay(HC.monthOf(e.date)) ? s + " (다음 달부터 제외)" : s; };
-function firstFail(d, r){ return r.months.find(k => k > d.baseMonth && k > d.specialUntil && r.rate[k] != null && r.rate[k] < d.target) || null; }
+function firstFail(d, r){ return r.months.find(k => k > d.baseMonth && k > d.specialUntil && r.rate[k] != null && r.rate[k] < d.target - 1e-12) || null; }
 const HORIZON = 18;
 let planCache = {key: null, val: null};
 function minPlan(d){
   const key = stable(d); if (planCache.key === key) return planCache.val;
   const t = clone(d), steps = [], until = d.endMonth;
-  const failOf = x => { const r = HC.calc(x); return r.months.find(k => k > x.baseMonth && k > x.specialUntil && k <= until && r.rate[k] != null && r.rate[k] < x.target) || null; };
+  const failOf = x => { const r = HC.calc(x); return r.months.find(k => k > x.baseMonth && k > x.specialUntil && k <= until && r.rate[k] != null && r.rate[k] < x.target - 1e-12) || null; };
   for (let guard = 0; guard < 80; guard++) {
     const F = failOf(t); if (!F) break; let best = null;
     for (let n = 1; n <= 12 && !best; n++) for (let back = 1; back <= 12; back++) {
       const Hm = HC.addM(F, -back); if (Hm <= t.baseMonth) break;
       const u = clone(t); u.adjust[Hm] = (+u.adjust[Hm] || 0) + n; const rr = HC.calc(u);
-      if (rr.rate[F] >= t.target) { best = {H: Hm, n}; break; }
+      if (rr.rate[F] >= t.target - 1e-12) { best = {H: Hm, n}; break; }
     }
     if (!best) { steps.push({H: null, F}); break; }
     t.adjust[best.H] = (+t.adjust[best.H] || 0) + best.n; steps.push(best);
@@ -326,11 +326,11 @@ function renderHeader(){
 }
 function cardsHtml(d, r){
   const b = d.baseMonth, nx = HC.addM(b, 1), s = suggest(d, r);
-  const fails = r.months.filter(k => k > b && k > d.specialUntil && r.rate[k] != null && r.rate[k] < d.target);
+  const fails = r.months.filter(k => k > b && k > d.specialUntil && r.rate[k] != null && r.rate[k] < d.target - 1e-12);
   const minK = r.months.filter(k => k > b && k > d.specialUntil && r.rate[k] != null).reduce((a, k) => a == null || r.rate[k] < r.rate[a] ? k : a, null);
   return `<div class="cards">
     <div class="card"><div class="lb">${ym(b)} 말 인원 (기준월)</div><div class="v">${r.cnt[b] ?? "–"}명</div><div class="s">6개월 평균 ${fmtN(r.avg[b])}명 · 증가율 ${pct(r.rate[b])}</div></div>
-    <div class="card ${r.rate[nx] != null && r.rate[nx] < d.target ? "bad" : ""}"><div class="lb">다음 달 ${ym(nx)} 예상</div><div class="v">${pct(r.rate[nx])}</div><div class="s">월말 ${r.cnt[nx] ?? "–"}명 · 6개월 평균 ${fmtN(r.avg[nx])}명</div></div>
+    <div class="card ${r.rate[nx] != null && r.rate[nx] < d.target - 1e-12 ? "bad" : ""}"><div class="lb">다음 달 ${ym(nx)} 예상</div><div class="v">${pct(r.rate[nx])}</div><div class="s">월말 ${r.cnt[nx] ?? "–"}명 · 6개월 평균 ${fmtN(r.avg[nx])}명</div></div>
     <div class="card ${fails.length ? "bad" : "good"}"><div class="lb">${pct(d.target, 0)} 미달 예상</div><div class="v">${fails.length ? fails.length + "개월" : "없음"}</div><div class="s">${fails.length ? "처음 " + ym(fails[0]) + " · 가장 낮은 달 " + ym(minK) + " " + pct(r.rate[minK]) : "~" + ym(d.endMonth) + " 전 기간 충족"}</div></div>
     <div class="card ${s.near.length ? "bad" : "good"}"><div class="lb">4% 유지에 필요한 순증 (앞으로 ${HORIZON}개월)</div>${s.near.length ? `<div class="v">+${s.nearSum}명</div><div class="s">가장 먼저 ${ym(s.near[0].H)} 말까지 +${s.near[0].n}명${s.far.length ? " · 그 뒤 " + d.endMonth.slice(0, 4) + "년까지 +" + s.farSum + "명" : ""}</div>` : `<div class="v">충분</div><div class="s">${s.far.length ? "그 뒤 " + d.endMonth.slice(0, 4) + "년까지 +" + s.farSum + "명 필요" : "추가 채용 없이 유지"}</div>`}</div>
   </div>`;
@@ -349,7 +349,7 @@ function chartHtml(d, r, c){
   g += `<line x1="${L}" x2="${W - R}" y1="${y(d.target)}" y2="${y(d.target)}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${W - R}" y="${y(d.target) - 5}" text-anchor="end" style="fill:var(--accent);font-weight:700">기준 ${pct(d.target, 0)}</text>`;
   if (c) g += `<polyline fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3" points="${ks.map((k, i) => c.rate[k] == null ? "" : x(i) + "," + y(c.rate[k])).filter(Boolean).join(" ")}"/>`;
   g += `<polyline fill="none" stroke="var(--j-sales)" stroke-width="2" points="${ks.map((k, i) => x(i) + "," + y(r.rate[k])).join(" ")}"/>`;
-  ks.forEach((k, i) => { const v = r.rate[k], bad = v < d.target; g += `<circle cx="${x(i)}" cy="${y(v)}" r="${bad ? 4 : 2.5}" fill="${bad ? "var(--accent)" : "var(--j-sales)"}" data-m="${k}" style="cursor:pointer"><title>${ym(k)} · ${pct(v)} · 월말 ${r.cnt[k]}명</title></circle>`; });
+  ks.forEach((k, i) => { const v = r.rate[k], bad = v < d.target - 1e-12; g += `<circle cx="${x(i)}" cy="${y(v)}" r="${bad ? 4 : 2.5}" fill="${bad ? "var(--accent)" : "var(--j-sales)"}" data-m="${k}" style="cursor:pointer"><title>${ym(k)} · ${pct(v, 3)} · ${bad ? "미달" : "충족"} · 월말 ${r.cnt[k]}명</title></circle>`; });
   return `<div class="panel"><h3><span>월별 고용증가율 <span class="muted mini">(정규 산식 ${ym(HC.addM(d.specialUntil, 1))}부터)</span></span><span class="legend"><span><span class="sw" style="background:var(--j-sales)"></span>${esc(S.scen[S.cur].name)}</span>${c ? `<span><span class="sw" style="background:var(--muted)"></span>${esc(S.scen[S.cmp].name)} (비교)</span>` : ""}<span style="color:var(--accent)">● ${pct(d.target, 0)} 미만</span></span></h3>
     <div class="chartwrap"><svg viewBox="0 0 ${W} ${Hh}" width="${W}" height="${Hh}" style="display:block" role="img" aria-label="월별 고용증가율 그래프">${g}</svg></div></div>`;
 }
@@ -369,7 +369,7 @@ function tableHtml(d, r, c){
     return `<td class="c k-${kd}${mm ? " mis" : ""}${selc(k)}" data-m="${k}" title="${esc(tip)}">${v ?? ""}${dl}</td>`;
   };
   const avgCell = k => `<td class="c${selc(k)}" data-m="${k}">${r.avg[k] == null ? "" : fmtN(r.avg[k])}</td>`;
-  const rateCell = k => { const v = r.rate[k]; if (v == null) return `<td></td>`; const sp = k <= d.specialUntil, fail = !sp && v < d.target; const cv = c && c.rate[k] != null ? " · 비교안 " + pct(c.rate[k]) : ""; return `<td class="c${sp ? " sp" : ""}${fail ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + (sp ? " · 설립 초기 예외 산식(" + d.specialBase + "명 기준)" : " · 전년 같은 달 대비") + cv)}">${pct(v, 2)}</td>`; };
+  const rateCell = k => { const v = r.rate[k]; if (v == null) return `<td></td>`; const sp = k <= d.specialUntil, fail = !sp && v < d.target - 1e-12; const cv = c && c.rate[k] != null ? " · 비교안 " + pct(c.rate[k], 3) : ""; return `<td class="c${sp ? " sp" : ""}${fail ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + " · " + pct(v, 3) + (sp ? " · 설립 초기 예외 산식(" + d.specialBase + "명 기준)" : (fail ? " · " + pct(d.target, 0) + " 미달" : " · " + pct(d.target, 0) + " 충족") + " · 전년 같은 달 대비") + cv)}">${pct(v, 2)}</td>`; };
   const V = [["cnt","월말 인원"],["need","필요 인원"],["avg","6개월 평균"],["rate","증가율"]], on = v => S.views.includes(v);
   const mp = minPlan(d);
   const needCell = k => { if (k <= d.baseMonth || mp.need[k] == null) return "<td></td>"; const nd = mp.need[k], hv = r.cnt[k], gap = nd - hv; return `<td class="c${gap > 0 ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + " · 4% 유지에 필요한 월말 인원 " + nd + "명 · 지금 예상 " + hv + "명" + (gap > 0 ? " · " + gap + "명 부족" : ""))}">${nd}${gap > 0 ? `<span class="dl"><span class="m">부족 ${gap}</span></span>` : ""}</td>`; };
@@ -392,7 +392,7 @@ function monthHtml(d, r){
     : k === d.baseMonth ? `<div class="fld"><label for="f-base">기준월 인원</label><input id="f-base" type="number" min="0" value="${d.baseCount}"></div>`
     : `<div class="fld"><label for="f-adj">계획 보정</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}" placeholder="예: 2 또는 -1"></div><p class="muted mini" style="margin:-2px 0 8px">이 달부터 이후 모든 달에 더하거나 뺍니다. 이름 없이 숫자로만 계획할 때 씁니다.</p>`;
   return `<div class="panel"><h3><span>${ymK(k)}</span><button class="btn sm" data-act="desel">닫기</button></h3>
-    <p class="mini" style="margin:0 0 8px">월말 <b>${r.cnt[k] ?? "–"}명</b> (${kd === "act" ? "실적" : "예상"}) · 6개월 평균 ${fmtN(r.avg[k])}명 · 증가율 <b style="${r.rate[k] != null && r.rate[k] < d.target && k > d.specialUntil ? "color:var(--accent)" : ""}">${pct(r.rate[k])}</b></p>
+    <p class="mini" style="margin:0 0 8px">월말 <b>${r.cnt[k] ?? "–"}명</b> (${kd === "act" ? "실적" : "예상"}) · 6개월 평균 ${fmtN(r.avg[k])}명 · 증가율 <b style="${r.rate[k] != null && r.rate[k] < d.target - 1e-12 && k > d.specialUntil ? "color:var(--accent)" : ""}">${pct(r.rate[k])}</b></p>
     ${mm ? `<div class="warnbox">전월 대비 인원 변화는 <b>${mm.delta > 0 ? "+" : ""}${mm.delta}명</b>인데 기록된 입퇴사는 <b>${mm.rec > 0 ? "+" : ""}${mm.rec}명</b>입니다. 빠진 기록이 있거나 실적 숫자를 확인해 주세요.</div>` : ""}
     ${editActual}
     <div class="mini" style="margin-top:4px"><b>이 달 인원 변동</b> ${evs.length ? "" : `<span class="muted">없음</span>`}</div>
