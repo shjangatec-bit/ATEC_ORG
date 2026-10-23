@@ -616,12 +616,17 @@ function tableRows(d){
     rows.push({u, dep, n: ps.length, v: ps.filter(p => p.vacant).length, jc, names: inUnit(d, id).map(pname).join(" ")}); kids(d, id).forEach(k => walk(k.id, dep + 1)); })(rootOf(d).id, 0);
   return rows;
 }
+function missingRankHtml(d){
+  const m = d.people.filter(p => !p.vacant && (!String(p.rank || "").trim() || !String(p.rankYears || "").trim()));
+  if (!m.length) return `<h4>직급·연차 미입력</h4><p class="muted mini">모두 입력되어 있습니다.</p>`;
+  return `<h4>직급·연차 미입력 ${m.length}명</h4><div class="chips" style="padding:0">${m.map(p => { const u = d.units.find(x => x.id === p.unit); return chipHtml(d, p, u || null, null).replace("</span>", ` <span class="muted">${esc(u ? u.name : "미배치")}${p.rank ? " · " + esc(p.rank) : " · 직급 없음"}${p.rankYears ? "" : " · 연차 없음"}</span></span>`); }).join("")}</div><p class="muted mini">이름을 누르면 바로 고칠 수 있습니다.</p>`;
+}
 function tablePane(d){
   const rows = tableRows(d);
   return `<h3><span>요약표</span><button class="btn sm" data-act="copytsv">엑셀용 복사</button></h3>
   <div class="tblwrap"><table><thead><tr><th>조직</th><th>조직장</th><th class="n">인원</th>${JOBS.map(j => `<th class="n">${j}</th>`).join("")}</tr></thead><tbody>` +
   rows.map(r => `<tr${r.dep === 1 ? ' class="l1"' : ""}><td>${"　".repeat(Math.max(0, r.dep - 1))}${esc(r.u.name)}</td><td>${esc(headLabel(d, r.u))}</td><td class="n">${r.n}${r.v ? "<span class='muted'>(" + r.v + ")</span>" : ""}</td>${JOBS.map(j => `<td class="n">${r.jc[j] || ""}</td>`).join("")}</tr>`).join("") +
-  `</tbody></table></div><p class="muted mini">괄호는 채용예정 인원입니다. 엑셀용 복사에는 조직별 명단도 함께 들어갑니다.</p>`;
+  `</tbody></table></div><p class="muted mini">괄호는 채용예정 인원입니다. 엑셀용 복사에는 조직별 명단도 함께 들어갑니다.</p>` + missingRankHtml(d);
 }
 
 /* ---------- actions ---------- */
@@ -876,7 +881,7 @@ function rankPreview(){
     const d = S.scen[sid].data; plan.changes[sid] = [];
     d.people.forEach(p => {
       if (p.vacant) return;
-      const x = lookup[nkey(p.name)]; if (!x) return;
+      const x = lookup[nkey(p.name)] || lookup[nkey(String(p.name).replace(/\(.*?\)/g, ""))]; if (!x) return;
       matched.add(x.key);
       const cur = (p.rank || "").trim();
       const next = nextYear && /27/.test(S.scen[sid].name);
