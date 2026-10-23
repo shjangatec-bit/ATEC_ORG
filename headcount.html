@@ -81,7 +81,6 @@ td.c{cursor:pointer}
 td.c:hover{background:var(--surface2)}
 td.k-act{color:var(--ink)}
 td.k-proj{color:var(--muted)}
-td.k-evt{background:var(--chg-soft)}
 td.k-plan{background:color-mix(in srgb,var(--j-sales) 14%,transparent)}
 td.fail{color:var(--accent);font-weight:700}
 td.sp{color:var(--muted);font-style:italic}
@@ -251,8 +250,7 @@ let tt; function toast(t){ const el = $("#toast"); el.textContent = t; el.hidden
 /* ---------- 계산 보조 ---------- */
 function kindOf(d, k){
   if (k < d.baseMonth) return "act"; if (k === d.baseMonth) return "act";
-  const ev = d.events.some(e => e.date && HC.monthOf(e.date) === k && e.date > HC.lastDay(d.baseMonth));
-  if (ev) return "evt"; if (d.adjust[k]) return "plan"; return "proj";
+  if (d.adjust[k]) return "plan"; return "proj";
 }
 function effMonth(e){
   if (!e.date) return null; const m = HC.monthOf(e.date);
@@ -379,7 +377,7 @@ function tableHtml(d, r, c){
   const needCell = k => { if (k <= d.baseMonth || mp.need[k] == null) return "<td></td>"; const nd = mp.need[k], hv = r.cnt[k], gap = nd - hv; return `<td class="c${gap > 0 ? " fail" : ""}${selc(k)}" data-m="${k}" title="${esc(ymK(k) + " · 4% 유지에 필요한 월말 인원 " + nd + "명 · 지금 예상 " + hv + "명" + (gap > 0 ? " · " + gap + "명 부족" : ""))}">${nd}${gap > 0 ? `<span class="dl"><span class="m">부족 ${gap}</span></span>` : ""}</td>`; };
   const tabs = `<span class="vt" role="group" aria-label="표에 보일 항목">${V.map(([v, t]) => `<button class="vtb${on(v) ? " on" : ""}" data-act="view" data-v="${v}" aria-pressed="${on(v)}">${on(v) ? "✓ " : ""}${t}</button>`).join("")}</span>`;
   const body = (on("cnt") ? sec("① 월말 인원 (말일 재직, 건강보험 가입자)", cntCell) : "") + (on("need") ? sec("①-2 4% 유지에 필요한 월말 인원 (현재 예정·계획에 더해 최소로)", needCell) : "") + (on("avg") ? sec("② 직전 " + d.window + "개월 평균", avgCell) : "") + (on("rate") ? sec("③ 고용증가율", rateCell) : "");
-  return `<h3><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">월별 표 ${tabs}</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="sw evt"></span>입퇴사 예정</span><span><span class="sw plan"></span>계획 보정</span>${Object.keys(mis).length ? `<span style="color:var(--warn)">▎기록 불일치 ${Object.keys(mis).length}개월</span>` : ""}<span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
+  return `<h3><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">월별 표 ${tabs}</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="dl" style="display:inline"><span class="p">+1</span> <span class="m">−1</span></span> 입퇴사</span><span><span class="sw plan"></span>계획 보정</span>${Object.keys(mis).length ? `<span style="color:var(--warn)">▎기록 불일치 ${Object.keys(mis).length}개월</span>` : ""}<span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
   <div class="tblwrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
   <p class="muted mini" style="margin:8px 0 0">칸을 누르면 오른쪽에서 그 달의 인원·입퇴사를 고칠 수 있습니다.</p>`;
 }
