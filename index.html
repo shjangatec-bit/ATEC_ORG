@@ -493,7 +493,7 @@ function chipHtml(d, p, u, diff){
   const q = S.q.trim();
   const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
-  const showBirth = !S.readOnly && !S.present && !S.view;
+  const showBirth = !S.readOnly && !S.view;
   const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
   const mv = from || (p.flags || []).includes("move");
   const mk = marks(p).replace("↔", "");
@@ -920,7 +920,7 @@ function openHR(){
   <textarea id="m-hr" placeholder="이름	직급	생년	입사일"></textarea>
   <label class="mini"><input type="checkbox" id="m-hr-all" checked> 모든 안에 적용 (끄면 지금 보고 있는 안에만)</label>
   <label class="mini"><input type="checkbox" id="m-hr-next" checked> 이름에 ‘27’이 들어간 안은 직급 연차 +1 (승진자는 승진 직급 1년차)</label>
-  <p class="muted mini" style="margin:0">생년·입사일은 모든 안에 같은 값이 들어갑니다. 비어 있는 칸과 목록에 없는 사람은 그대로 둡니다. 생년은 편집 화면에서만 보입니다.</p>
+  <p class="muted mini" style="margin:0">생년·입사일은 모든 안에 같은 값이 들어갑니다. 비어 있는 칸과 목록에 없는 사람은 그대로 둡니다. 생년·나이는 보기 전용 계정에는 보이지 않습니다.</p>
   <div id="m-hr-out"></div>
   <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">닫기</button><button class="btn" data-act="hr-preview">미리보기</button><button class="btn primary" data-act="hr-apply" id="m-hr-go" disabled>적용</button></div></div></div>`;
   setTimeout(() => $("#m-hr").focus(), 0);
