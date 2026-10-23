@@ -423,6 +423,7 @@ function linkPeople(B, C){
 function computeDiff(B, C){
   const bu = um(B), cu = um(C), bp = pm(B), cp = pm(C);
   const r = {units:[], people:[], tag:{}, moved:new Set(), from:{}, rows:[]};
+  const lk = linkPeople(B, C);
   C.units.forEach(u => {
     const b = bu[u.id];
     if (!b) { r.units.push({k:"new", t:"신설 · " + u.name + " (" + unitName(C, u.parent) + " 아래)"}); r.tag[u.id] = {k:"new", t:"신설"}; return; }
@@ -430,12 +431,11 @@ function computeDiff(B, C){
     if (b.name !== u.name) ch.push("명칭 " + b.name + " → " + u.name);
     if (b.parent !== u.parent) ch.push("상위 " + unitName(B, b.parent) + " → " + unitName(C, u.parent));
     if (b.type !== u.type) ch.push("유형 " + b.type + " → " + u.type);
-    const bh = headLabel(B, b), chh = headLabel(C, u); if (bh !== chh) ch.push("조직장 " + bh + " → " + chh);
+    const bh = headLabel(B, b), chh = headLabel(C, u), sameHead = u.headId && b.headId && lk.c2b[u.headId] && lk.c2b[u.headId].id === b.headId; if (!sameHead && bh !== chh) ch.push("조직장 " + bh + " → " + chh);
     const structural = b.name !== u.name || b.parent !== u.parent || b.type !== u.type;
     if (ch.length) { r.units.push({k:"chg", t:u.name + " · " + ch.join(" / ")}); if (structural) r.tag[u.id] = {k:"chg", t:"변경"}; }
   });
   B.units.forEach(b => { if (!cu[b.id]) r.units.push({k:"del", t:"폐지 · " + b.name}); });
-  const lk = linkPeople(B, C);
   C.people.forEach(p => {
     const b = lk.c2b[p.id];
     if (!b) { r.people.push({k:"add", t:(p.vacant ? "채용예정 추가" : "추가") + " · " + pname(p) + " → " + unitName(C, p.unit)}); r.moved.add(p.id); return; }

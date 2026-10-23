@@ -313,6 +313,7 @@ function render(){
   const keep = {x: window.scrollX, y: window.scrollY, tbl: $(".tblwrap") ? $(".tblwrap").scrollLeft : 0};
   const ae = document.activeElement, aeId = ae && ae.id, selStart = ae && ae.selectionStart;
   $("#main").innerHTML = cardsHtml(d, r) + chartHtml(d, r, c) + `<div class="lower"><div class="panel">${tableHtml(d, r, c)}</div><div class="side">${monthHtml(d, r)}${rosterHtml(d, r)}${eventsHtml(d)}${settingsHtml(d)}</div></div>`;
+  if (S.readOnly) document.querySelectorAll(".side input, .side select, .side [data-act='roll']").forEach(x => { if (x.dataset.act === "roll") x.hidden = true; else x.disabled = true; });
   if ($(".tblwrap")) $(".tblwrap").scrollLeft = keep.tbl;
   window.scrollTo(keep.x, keep.y);
   if (aeId && $("#" + aeId)) { const el = $("#" + aeId); el.focus(); try { if (selStart != null) el.setSelectionRange(selStart, selStart); } catch (e) {} }
