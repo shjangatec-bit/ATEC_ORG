@@ -416,9 +416,10 @@ function evRow(d, e){
     <select class="ee-type" style="flex:0 0 68px"><option value="in"${e.type === "in" ? " selected" : ""}>입사</option><option value="out"${e.type === "out" ? " selected" : ""}>퇴사</option></select>
     <input class="ee-name" value="${esc(e.name || "")}" placeholder="이름" style="flex:1 1 70px;min-width:0">
     <input class="ee-date" value="${esc(e.date || "")}" placeholder="2026-03-02 또는 2026-03" style="flex:1 1 110px;min-width:0">
-    <input class="ee-note" value="${esc(e.note || "")}" placeholder="메모" style="flex:1 1 100%;min-width:0">
+    <input class="ee-unit" list="ev-groups" value="${esc(e.unit || "")}" placeholder="소속" style="flex:1 1 90px;min-width:0">
+    <input class="ee-note" value="${esc(e.note || "")}" placeholder="메모" style="flex:1 1 140px;min-width:0">
     <span style="display:flex;gap:6px;margin-left:auto"><button class="btn sm" data-act="ev-cancel">취소</button><button class="btn sm primary" data-act="ev-save" data-id="${esc(e.id)}">저장</button></span></div>`;
-  return `<div class="ev${past ? " past" : ""}"${S.readOnly ? "" : ` data-act="ev-edit" data-id="${esc(e.id)}" style="cursor:pointer"`} title="${S.readOnly ? "" : "눌러서 고치기"}${past ? (S.readOnly ? "" : " · ") + "기준월 이전 기록(인원 숫자는 그대로)" : ""}"><span class="tg ${e.type}">${e.type === "in" ? "입사" : "퇴사"}</span><span class="d" style="width:auto;min-width:64px">${esc(dstr(e))}</span><span class="nm">${esc(e.name || "(이름 없음)")}${e.note ? ` <span class="muted">· ${esc(e.note)}</span>` : ""}</span>${S.readOnly ? "" : `<button class="x" data-act="ev-del" data-id="${esc(e.id)}" aria-label="삭제" title="삭제">×</button>`}</div>`;
+  return `<div class="ev${past ? " past" : ""}"${S.readOnly ? "" : ` data-act="ev-edit" data-id="${esc(e.id)}" style="cursor:pointer"`} title="${S.readOnly ? "" : "눌러서 고치기"}${past ? (S.readOnly ? "" : " · ") + "기준월 이전 기록(인원 숫자는 그대로)" : ""}"><span class="tg ${e.type}">${e.type === "in" ? "입사" : "퇴사"}</span><span class="d" style="width:auto;min-width:64px">${esc(dstr(e))}</span><span class="nm">${esc(e.name || "(이름 없음)")}${e.unit ? ` <span class="muted">${esc(e.unit)}</span>` : ""}${e.note ? ` <span class="muted">· ${esc(e.note)}</span>` : ""}</span>${S.readOnly ? "" : `<button class="x" data-act="ev-del" data-id="${esc(e.id)}" aria-label="삭제" title="삭제">×</button>`}</div>`;
 }
 function parseDateLoose(x){
   const t = String(x || "").trim(); const m = t.match(/^(\d{4})[.\-\/]?(\d{1,2})(?:[.\-\/]?(\d{1,2}))?\.?$/);
@@ -429,15 +430,17 @@ function parseDateLoose(x){
 const rkey = n => String(n || "").replace(/\(.*?\)/g, "").replace(/\s/g, "");
 const ROSTER_FROM = "2026-01";
 const effAt = (e, T) => e.type === "in" ? e.date <= T : e.date < T;
+const groupList = d => [...new Set((d.roster || []).map(p => p.group).filter(Boolean).concat(d.events.map(e => e.unit).filter(Boolean)))];
 function rosterFor(d, m){
   const Eb = HC.lastDay(d.baseMonth), E = HC.lastDay(m), Ep = HC.lastDay(HC.addM(m, -1));
   const st = new Map();
   (d.roster || []).forEach((p, i) => { const k = rkey(p.name); if (!st.has(k)) st.set(k, {p: Object.assign({i}, p), on: true}); });
   const evs = d.events.filter(e => e.date && e.name);
   const get = (e, g) => { const k = rkey(e.name); let x = st.get(k); if (!x) { x = {p: {name: e.name, unit: "", group: g}, on: false}; st.set(k, x); } return x; };
-  if (E < Eb) evs.filter(e => effAt(e, Eb) && !effAt(e, E)).sort((a, b) => b.date.localeCompare(a.date)).forEach(e => { const x = get(e, "이후 퇴사"); x.on = e.type === "out"; if (e.type === "out" && !x.p.left) x.p = Object.assign({}, x.p, {left: e}); });
-  else if (E > Eb) evs.filter(e => effAt(e, E) && !effAt(e, Eb)).sort((a, b) => a.date.localeCompare(b.date)).forEach(e => { get(e, "신규 입사").on = e.type === "in"; });
-  const list = [...st.values()].filter(x => x.on).map(x => x.p);
+  if (E < Eb) evs.filter(e => effAt(e, Eb) && !effAt(e, E)).sort((a, b) => b.date.localeCompare(a.date)).forEach(e => { get(e, e.unit || "소속 미입력").on = e.type === "out"; });
+  else if (E > Eb) evs.filter(e => effAt(e, E) && !effAt(e, Eb)).sort((a, b) => a.date.localeCompare(b.date)).forEach(e => { get(e, e.unit || "소속 미입력").on = e.type === "in"; });
+  const list = [...st.values()].filter(x => x.on).map(x => x.p), order = groupList(d);
+  list.sort((a, b) => { const ga = order.indexOf(a.group), gb = order.indexOf(b.group); return (ga < 0 ? 999 : ga) - (gb < 0 ? 999 : gb); });
   const chg = evs.filter(e => effAt(e, E) && !effAt(e, Ep)).sort((a, b) => a.date.localeCompare(b.date));
   return {list, ins: chg.filter(e => e.type === "in"), outs: chg.filter(e => e.type === "out")};
 }
@@ -447,7 +450,7 @@ function rosterHtml(d, r){
   const plan = m > d.baseMonth ? Object.entries(d.adjust).filter(([k, v]) => k > d.baseMonth && k <= m).reduce((a, [, v]) => a + (+v || 0), 0) : 0;
   const total = list.length + plan, cnt = r.cnt[m], diff = cnt == null ? 0 : total - cnt, ed = S.rxEdit && !S.readOnly && isBase;
   const groups = {}; list.forEach(p => (groups[p.group || "기타"] = groups[p.group || "기타"] || []).push(p));
-  const chip = p => `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${p.left ? ` <span class="muted">${esc(dstr(p.left))} 퇴사</span>` : ""}${ed && p.i != null ? ` <button class="x" data-act="rx-del" data-i="${p.i}" aria-label="빼기" title="명단에서 빼기">×</button>` : ""}</span>`;
+  const chip = p => `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${ed && p.i != null ? ` <button class="x" data-act="rx-del" data-i="${p.i}" aria-label="빼기" title="명단에서 빼기">×</button>` : ""}</span>`;
   const gl = [...new Set((d.roster || []).map(p => p.group).filter(Boolean))];
   const evc = (es, sign, col) => es.map(e => `<span class="rc" style="color:${col}">${sign}${esc(e.name)} <span class="muted">${esc(dstr(e))}</span></span>`).join("");
   const title = isBase ? "이번 달 명단" : "명단";
@@ -466,7 +469,7 @@ function eventsHtml(d){
   const up = evs.filter(isUp), past = evs.filter(e => !isUp(e));
   return `<div class="panel"><details id="d-ev"${S.open["d-ev"] ? " open" : ""}><summary>입퇴사 기록 <span class="muted mini">(예정 ${up.length}건 · 지난 기록 ${past.length}건)</span></summary><div style="margin-top:10px">${S.readOnly ? "" : `<div class="row" style="justify-content:flex-end;margin-bottom:6px"><button class="btn sm" data-act="bulk-open">여러 건 붙여넣기</button></div>`}
     ${S.readOnly ? "" : `<div class="row"><select id="f-etype" style="flex:0 0 70px"><option value="in">입사</option><option value="out">퇴사</option></select><input id="f-ename" placeholder="이름" style="flex:1 1 80px"><input id="f-edate" type="date" style="flex:1 1 120px"></div>
-    <div class="row" style="margin-top:6px"><input id="f-enote" placeholder="메모 (선택)"><button class="btn sm primary" data-act="ev-add">추가</button></div>`}
+    <div class="row" style="margin-top:6px"><input id="f-eunit" list="ev-groups" placeholder="소속" style="flex:1 1 90px"><input id="f-enote" placeholder="메모 (선택)" style="flex:1 1 90px"><datalist id="ev-groups">${groupList(d).map(g => `<option value="${esc(g)}">`).join("")}</datalist><button class="btn sm primary" data-act="ev-add">추가</button></div>`}
     <div class="mini" style="margin:6px 0 2px"><b>예정</b></div>${up.map(e => evRow(d, e)).join("") || `<p class="muted mini">예정된 입퇴사가 없습니다.</p>`}
     ${past.length ? `<details style="margin-top:8px" ${past.length <= 15 ? "open" : ""}><summary class="mini"><b>지난 기록 ${past.length}건</b> <span class="muted">(기록용 · 인원 숫자는 그대로)</span></summary>${past.map(e => evRow(d, e)).join("")}</details>` : ""}
   </div></details></div>`;
@@ -504,10 +507,10 @@ function act(name, el){
     case "bulk-open": openBulk(); break;
     case "bulk-apply": bulkApply(); break;
     case "ev-add": {
-      const name = $("#f-ename").value.trim(), date = $("#f-edate").value, type = $("#f-etype").value, note = $("#f-enote").value.trim();
+      const name = $("#f-ename").value.trim(), date = $("#f-edate").value, type = $("#f-etype").value, note = $("#f-enote").value.trim(), unit = $("#f-eunit").value.trim();
       if (!date) { toast("날짜를 넣어 주세요."); $("#f-edate").focus(); return; }
       if (date <= HC.lastDay(d.baseMonth)) toast("기준월 이전 날짜라 계산에는 반영되지 않고 기록만 남습니다.");
-      mutate(d => { d.events.push({id: uid("e"), type, name, date, note}); });
+      mutate(d => { d.events.push(Object.assign({id: uid("e"), type, name, date, note}, unit ? {unit} : {})); });
       S.sel = HC.monthOf(date); render(); break;
     }
     case "quick-in": case "quick-out": { const k = el.dataset.m; $("#f-etype").value = name === "quick-in" ? "in" : "out"; $("#f-edate").value = name === "quick-in" ? k + "-01" : HC.lastDay(k).slice(0, 8) + "15"; $("#f-ename").focus(); toast("이름과 날짜를 확인하고 '추가'를 누르세요."); break; }
@@ -516,7 +519,7 @@ function act(name, el){
     case "ev-save": {
       const row = el.closest(".evedit"), id = el.dataset.id, nd = parseDateLoose(row.querySelector(".ee-date").value);
       if (!nd) { toast("날짜를 2026-03-02 또는 2026-03 형식으로 넣어 주세요."); row.querySelector(".ee-date").focus(); return; }
-      const v = {type: row.querySelector(".ee-type").value, name: row.querySelector(".ee-name").value.trim(), date: nd, note: row.querySelector(".ee-note").value.trim()};
+      const v = {type: row.querySelector(".ee-type").value, name: row.querySelector(".ee-name").value.trim(), date: nd, note: row.querySelector(".ee-note").value.trim(), unit: row.querySelector(".ee-unit").value.trim()};
       S.editEv = null; mutate(d => { const e = d.events.find(x => x.id === id); if (e) Object.assign(e, v); return "기록을 고쳤습니다."; }); break;
     }
     case "ev-del": { if (S.readOnly) return; const id = el.dataset.id; mutate(d => { d.events = d.events.filter(x => x.id !== id); }); break; }
