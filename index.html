@@ -495,7 +495,7 @@ function chipHtml(d, p, u, diff){
   const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
   const showBirth = !S.readOnly && !S.present && !S.view;
-  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생" : "", from ? "이전 소속: " + from : "", p.note, S.readOnly ? "" : "더블클릭해서 이름 수정"].filter(Boolean).join(" · ");
+  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
   const mv = from || (p.flags || []).includes("move");
   const mk = marks(p).replace("↔", "");
   return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}</span>`;
@@ -509,8 +509,8 @@ function unitHtml(d, u, lv, diff){
   ppl = ppl.slice().sort((a,b) => (b.id === u.headId) - (a.id === u.headId));
   return `<div class="${cls}" data-uid="${esc(u.id)}" draggable="${lv !== "root" && !S.readOnly}" tabindex="0">
     ${tag ? `<span class="dtag dtag-${tag.k}">${tag.t}</span>` : ""}
-    <div class="band"><div class="u-top"><span class="u-name" title="더블클릭해서 수정">${esc(u.name)}</span><span class="u-cnt">${n}명${v ? ` <i>채용${v}</i>` : ""}</span></div>
-    <div class="u-head" title="더블클릭해서 수정">${esc(headLabel(d, u))}</div></div>
+    <div class="band"><div class="u-top"><span class="u-name">${esc(u.name)}</span><span class="u-cnt">${n}명${v ? ` <i>채용${v}</i>` : ""}</span></div>
+    <div class="u-head">${esc(headLabel(d, u))}</div></div>
     ${ppl.length ? `<div class="chips">${ppl.map(p => chipHtml(d, p, u, diff)).join("")}</div>` : ""}
   </div>`;
 }
