@@ -435,7 +435,7 @@ function rosterFor(d, m){
   (d.roster || []).forEach((p, i) => { const k = rkey(p.name); if (!st.has(k)) st.set(k, {p: Object.assign({i}, p), on: true}); });
   const evs = d.events.filter(e => e.date && e.name);
   const get = (e, g) => { const k = rkey(e.name); let x = st.get(k); if (!x) { x = {p: {name: e.name, unit: "", group: g}, on: false}; st.set(k, x); } return x; };
-  if (E < Eb) evs.filter(e => effAt(e, Eb) && !effAt(e, E)).sort((a, b) => b.date.localeCompare(a.date)).forEach(e => { get(e, "이후 퇴사").on = e.type === "out"; });
+  if (E < Eb) evs.filter(e => effAt(e, Eb) && !effAt(e, E)).sort((a, b) => b.date.localeCompare(a.date)).forEach(e => { const x = get(e, "이후 퇴사"); x.on = e.type === "out"; if (e.type === "out" && !x.p.left) x.p = Object.assign({}, x.p, {left: e}); });
   else if (E > Eb) evs.filter(e => effAt(e, E) && !effAt(e, Eb)).sort((a, b) => a.date.localeCompare(b.date)).forEach(e => { get(e, "신규 입사").on = e.type === "in"; });
   const list = [...st.values()].filter(x => x.on).map(x => x.p);
   const chg = evs.filter(e => effAt(e, E) && !effAt(e, Ep)).sort((a, b) => a.date.localeCompare(b.date));
@@ -447,7 +447,7 @@ function rosterHtml(d, r){
   const plan = m > d.baseMonth ? Object.entries(d.adjust).filter(([k, v]) => k > d.baseMonth && k <= m).reduce((a, [, v]) => a + (+v || 0), 0) : 0;
   const total = list.length + plan, cnt = r.cnt[m], diff = cnt == null ? 0 : total - cnt, ed = S.rxEdit && !S.readOnly && isBase;
   const groups = {}; list.forEach(p => (groups[p.group || "기타"] = groups[p.group || "기타"] || []).push(p));
-  const chip = p => `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${ed && p.i != null ? ` <button class="x" data-act="rx-del" data-i="${p.i}" aria-label="빼기" title="명단에서 빼기">×</button>` : ""}</span>`;
+  const chip = p => `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${p.left ? ` <span class="muted">${esc(dstr(p.left))} 퇴사</span>` : ""}${ed && p.i != null ? ` <button class="x" data-act="rx-del" data-i="${p.i}" aria-label="빼기" title="명단에서 빼기">×</button>` : ""}</span>`;
   const gl = [...new Set((d.roster || []).map(p => p.group).filter(Boolean))];
   const evc = (es, sign, col) => es.map(e => `<span class="rc" style="color:${col}">${sign}${esc(e.name)} <span class="muted">${esc(dstr(e))}</span></span>`).join("");
   const title = isBase ? "이번 달 명단" : "명단";
