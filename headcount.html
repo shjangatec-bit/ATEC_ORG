@@ -219,7 +219,7 @@ const hist = {}, dirty = new Set(), saving = new Set(), timers = {};
 let sb = null, me = null, chan = null;
 
 function blank(){ return {version:1, startMonth:"2024-11", endMonth:"2029-12", window:6, target:0.04, specialUntil:"2026-04", specialBase:45, actual:{}, baseMonth:"2026-10", baseCount:0, adjust:{}, events:[], notes:{}}; }
-function norm(d){ const b = blank(); d = Object.assign(b, d || {}); d.actual = d.actual || {}; d.adjust = d.adjust || {}; d.noHire = Array.isArray(d.noHire) ? d.noHire : []; d.rosterExtra = Array.isArray(d.rosterExtra) ? d.rosterExtra : []; d.events = Array.isArray(d.events) ? d.events : []; return d; }
+function norm(d){ const b = blank(); d = Object.assign(b, d || {}); d.actual = d.actual || {}; d.adjust = d.adjust || {}; d.noHire = Array.isArray(d.noHire) ? d.noHire : []; d.roster = Array.isArray(d.roster) ? d.roster : []; delete d.rosterExtra; d.events = Array.isArray(d.events) ? d.events : []; return d; }
 const D = () => S.scen[S.cur] && S.scen[S.cur].data;
 const list = () => Object.entries(S.scen).sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0) || (a[1].updatedAt || 0) - (b[1].updatedAt || 0));
 
@@ -329,7 +329,9 @@ function cardsHtml(d, r){
   const b = d.baseMonth, nx = HC.addM(b, 1), s = suggest(d, r);
   const fails = r.months.filter(k => k > b && k > d.specialUntil && r.rate[k] != null && r.rate[k] < d.target - 1e-12);
   const minK = r.months.filter(k => k > b && k > d.specialUntil && r.rate[k] != null).reduce((a, k) => a == null || r.rate[k] < r.rate[a] ? k : a, null);
-  return `<div class="cards">
+  const t = new Date(), today = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+  const banner = !S.readOnly && today > HC.lastDay(b) ? `<div class="panel" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-color:var(--accent)"><span style="flex:1">${ymK(b)}이 끝났습니다. 기준월을 ${ymK(nx)}로 넘길까요?</span><button class="btn sm" data-act="roll">기준월 넘기기</button></div>` : "";
+  return banner + `<div class="cards">
     <div class="card"><div class="lb">${ym(b)} 말 인원 (기준월)</div><div class="v">${r.cnt[b] ?? "–"}명</div><div class="s">6개월 평균 ${fmtN(r.avg[b])}명 · 증가율 ${pct(r.rate[b])}</div></div>
     <div class="card ${r.rate[nx] != null && r.rate[nx] < d.target - 1e-12 ? "bad" : ""}"><div class="lb">다음 달 ${ym(nx)} 예상</div><div class="v">${pct(r.rate[nx])}</div><div class="s">월말 ${r.cnt[nx] ?? "–"}명 · 6개월 평균 ${fmtN(r.avg[nx])}명</div></div>
     ${(() => { const hz = HC.addM(b, HORIZON), fn = fails.filter(k => k <= hz), ff = fails.filter(k => k > hz); const mk = fn.reduce((a, k) => a == null || r.rate[k] < r.rate[a] ? k : a, null);
@@ -424,43 +426,30 @@ function parseDateLoose(x){
   const ymS = m[1] + "-" + String(m[2]).padStart(2, "0"); if (!m[3]) return ymS;
   const dd = ymS + "-" + String(m[3]).padStart(2, "0"); return dd <= HC.lastDay(ymS) ? dd : null;
 }
-let ORG = null;
-async function loadOrg(){
-  try {
-    const {data, error} = await sb.from("org_scenarios").select("name,data,updated_at"); if (error || !data || !data.length) { ORG = {err: true}; render(); return; }
-    const row = data.find(x => /현행/.test(x.name || "")) || data[0];
-    const units = {}; (row.data.units || []).forEach(u => units[u.id] = u);
-    const top = id => { let u = units[id], prev = u; while (u && u.parent && units[u.parent] && units[u.parent].parent) { prev = units[u.parent]; u = prev; } return u; };
-    const people = (row.data.people || []).filter(p => !p.vacant && p.unit && units[p.unit]).map(p => { const t = top(p.unit); return {name: p.name, rank: p.rank || "", unit: units[p.unit].name, group: t && t.parent ? t.name : "대표이사"}; });
-    ORG = {name: row.name, people};
-  } catch (e) { ORG = {err: true}; }
-  render();
-}
-function rosterHtml(d, r){
-  if (!ORG) return "";
-  if (ORG.err) return `<div class="panel"><details><summary>이번 달 명단</summary><p class="mini muted">조직도 자료를 불러오지 못했습니다.</p></details></div>`;
-  const ex = d.rosterExtra || [], bEnd = HC.lastDay(d.baseMonth), key = n => String(n || "").replace(/\(.*?\)/g, "").replace(/\s/g, "");
+const rkey = n => String(n || "").replace(/\(.*?\)/g, "").replace(/\s/g, "");
+function rosterAt(d, bEnd){
   const outBy = {}, inBy = {};
-  d.events.forEach(e => { if (!e.date || !e.name) return; const k = key(e.name);
+  d.events.forEach(e => { if (!e.date || !e.name) return; const k = rkey(e.name);
     if (e.type === "out" && e.date < bEnd && (!outBy[k] || e.date > outBy[k].date)) outBy[k] = e;
     if (e.type === "in" && e.date <= bEnd && (!inBy[k] || e.date > inBy[k].date)) inBy[k] = e; });
-  const gone = e => outBy[key(e.name)] && !(inBy[key(e.name)] && inBy[key(e.name)].date > outBy[key(e.name)].date);
-  const all = ORG.people.concat(ex.map(p => ({name: p.name, rank: "", unit: p.unit || "", group: "조직도 밖 인원", extra: true})));
+  const gone = p => outBy[rkey(p.name)] && !(inBy[rkey(p.name)] && inBy[rkey(p.name)].date > outBy[rkey(p.name)].date);
   const seen = new Set(), list = [], left = [];
-  all.forEach(p => { const k = key(p.name); if (seen.has(k)) return; seen.add(k); if (gone(p)) left.push({p, e: outBy[k]}); else list.push(p); });
-  const joined = Object.entries(inBy).filter(([k, e]) => !seen.has(k) && !(outBy[k] && outBy[k].date >= e.date)).map(([, e]) => ({name: e.name, rank: "", unit: "입사 기록", group: "입사 기록으로 추가", joined: e}));
-  joined.forEach(p => list.push(p));
-  const total = list.length, base = r.cnt[d.baseMonth], diff = total - base;
-  const groups = {}; list.filter(p => !p.extra).forEach(p => (groups[p.group] = groups[p.group] || []).push(p));
-  const chip = p => `<span class="rc" title="${esc([p.rank, p.unit].filter(Boolean).join(" · "))}">${esc(p.name)}</span>`;
+  (d.roster || []).forEach((p, i) => { const k = rkey(p.name); if (seen.has(k)) return; seen.add(k); if (gone(p)) left.push({p, e: outBy[k]}); else list.push(Object.assign({i}, p)); });
+  Object.entries(inBy).forEach(([k, e]) => { if (!seen.has(k) && !(outBy[k] && outBy[k].date >= e.date)) list.push({name: e.name, unit: "", group: "신규 입사", joined: e}); });
+  return {list, left};
+}
+function rosterHtml(d, r){
+  const {list, left} = rosterAt(d, HC.lastDay(d.baseMonth));
+  const total = list.length, base = r.cnt[d.baseMonth], diff = total - base, ed = S.rxEdit && !S.readOnly;
+  const groups = {}; list.forEach(p => (groups[p.group || "기타"] = groups[p.group || "기타"] || []).push(p));
+  const chip = p => `<span class="rc" title="${esc(p.joined ? "입사 " + dstr(p.joined) : (p.unit || ""))}">${esc(p.name)}${ed && p.i != null ? ` <button class="x" data-act="rx-del" data-i="${p.i}" aria-label="빼기" title="명단에서 빼기">×</button>` : ""}</span>`;
+  const gl = [...new Set((d.roster || []).map(p => p.group).filter(Boolean))];
   return `<div class="panel"><details id="d-roster"${S.open["d-roster"] ? " open" : ""}><summary>이번 달 명단 <span class="mini" style="color:${diff ? "var(--accent)" : "var(--muted)"}">(${ym(d.baseMonth)} · ${total}명${diff ? " · 기준월 인원 " + base + "명과 " + (diff > 0 ? "+" : "") + diff + "명 차이" : " · 기준월 인원과 일치"})</span></summary>
     <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
-    ${Object.entries(groups).map(([g, ps]) => `<div><div class="mini"><b>${esc(g)}</b> <span class="muted">${ps.length}명</span></div><div class="rcs">${ps.map(chip).join("")}</div></div>`).join("")}
-    <div><div class="mini"><b>조직도 밖 인원</b> <span class="muted">${ex.filter(p => !gone(p)).length}명</span></div>
-      <div class="rcs">${ex.map((p, i) => gone(p) ? "" : `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${p.unit ? ` <span class="muted">${esc(p.unit)}</span>` : ""}${S.readOnly ? "" : ` <button class="x" data-act="rx-del" data-i="${i}" aria-label="빼기" title="빼기">×</button>`}</span>`).join("") || `<span class="muted mini">없음</span>`}</div>
-      ${S.readOnly ? "" : `<div class="row" style="margin-top:6px"><input id="f-rxname" placeholder="이름" style="flex:1 1 70px"><input id="f-rxunit" placeholder="소속 (선택)" style="flex:1 1 90px"><button class="btn sm" data-act="rx-add">추가</button></div>`}</div>
-    ${left.length ? `<div><div class="mini"><b>퇴사 기록으로 제외</b> <span class="muted">${left.length}명</span></div><div class="rcs">${left.map(x => `<span class="rc" style="text-decoration:line-through;color:var(--muted)" title="${esc(x.p.unit)}">${esc(x.p.name)} <span class="muted">${esc(dstr(x.e))}</span></span>`).join("")}</div></div>` : ""}
-    <p class="muted mini" style="margin:0">조직도 ‘${esc(ORG.name)}’ 안 기준 (채용예정·미배치 제외)</p>
+    ${S.readOnly ? "" : `<div class="row" style="justify-content:flex-end"><button class="btn sm" data-act="rx-edit">${ed ? "고치기 끝" : "명단 고치기"}</button></div>`}
+    ${Object.entries(groups).map(([g, ps]) => `<div><div class="mini"><b>${esc(g)}</b> <span class="muted">${ps.length}명</span></div><div class="rcs">${ps.map(chip).join("")}</div></div>`).join("") || `<span class="muted mini">명단이 비어 있습니다.</span>`}
+    ${ed ? `<div class="row"><input id="f-rxname" placeholder="이름" style="flex:1 1 70px"><input id="f-rxunit" list="rx-groups" placeholder="소속" style="flex:1 1 90px"><datalist id="rx-groups">${gl.map(g => `<option value="${esc(g)}">`).join("")}</datalist><button class="btn sm" data-act="rx-add">추가</button></div>` : ""}
+    ${left.length ? `<div><div class="mini"><b>퇴사 기록으로 제외</b> <span class="muted">${left.length}명</span></div><div class="rcs">${left.map(x => `<span class="rc" style="text-decoration:line-through;color:var(--muted)">${esc(x.p.name)} <span class="muted">${esc(dstr(x.e))}</span></span>`).join("")}</div></div>` : ""}
     </div></details></div>`;
 }
 function eventsHtml(d){
@@ -523,8 +512,9 @@ function act(name, el){
       S.editEv = null; mutate(d => { const e = d.events.find(x => x.id === id); if (e) Object.assign(e, v); return "기록을 고쳤습니다."; }); break;
     }
     case "ev-del": { if (S.readOnly) return; const id = el.dataset.id; mutate(d => { d.events = d.events.filter(x => x.id !== id); }); break; }
-    case "rx-add": { const n = $("#f-rxname").value.trim(), u = $("#f-rxunit").value.trim(); if (!n) { $("#f-rxname").focus(); return; } mutate(d => { d.rosterExtra = (d.rosterExtra || []).concat([{name: n, unit: u}]); }); break; }
-    case "rx-del": { const i = +el.dataset.i; mutate(d => { d.rosterExtra = (d.rosterExtra || []).filter((_, k) => k !== i); }); break; }
+    case "rx-edit": S.rxEdit = !S.rxEdit; render(); break;
+    case "rx-add": { const n = $("#f-rxname").value.trim(), u = $("#f-rxunit").value.trim(); if (!n) { $("#f-rxname").focus(); return; } mutate(d => { d.roster = (d.roster || []).concat([{name: n, unit: "", group: u || "기타"}]); }); break; }
+    case "rx-del": { const i = +el.dataset.i; mutate(d => { d.roster = (d.roster || []).filter((_, k) => k !== i); }); break; }
     case "nohire": { const m = el.dataset.m; mutate(d => { const set = new Set(d.noHire || []); set.add(m); d.noHire = [...set].sort(); return ym(m) + "은 채용하지 않는 것으로 하고 다시 계산했습니다."; }); break; }
     case "nohire-off": { const m = el.dataset.m; mutate(d => { d.noHire = (d.noHire || []).filter(x => x !== m); return ym(m) + "을 다시 채용 가능한 달로 바꿨습니다."; }); break; }
     case "plan-clear": { if (!armed(el, "한 번 더 누르면 빼기")) return; mutate(d => { const n = Object.keys(d.adjust).filter(m => m > d.baseMonth).length; Object.keys(d.adjust).forEach(m => { if (m > d.baseMonth) delete d.adjust[m]; }); return "계획 " + n + "건을 모두 뺐습니다. 되돌리기(↶)로 복구할 수 있습니다."; }); break; }
@@ -543,6 +533,7 @@ function moveBase(d, nb){
   const r = HC.calc(d), ob = d.baseMonth;
   if (nb > ob) {
     for (let m = ob; m < nb; m = HC.addM(m, 1)) d.actual[m] = r.cnt[m];
+    const rs = rosterAt(d, HC.lastDay(nb)); d.roster = rs.list.map(p => ({name: p.name, unit: p.unit || "", group: p.group || "기타"}));
     d.baseCount = r.cnt[nb]; Object.keys(d.adjust).forEach(k => { if (k <= nb) delete d.adjust[k]; });
   } else {
     d.baseCount = d.actual[nb] ?? r.cnt[nb] ?? d.baseCount;
@@ -671,7 +662,6 @@ async function afterLogin(user){
   if (me1) { setStatus("서버에 연결하지 못했습니다. 새로고침해 주세요.", true); return; }
   if (!mem) { setStatus("이 계정에는 권한이 없습니다.", true); S.mode = "db"; render(); return; }
   S.readOnly = mem.role !== "editor";
-  loadOrg();
   const {data: rows, error} = await sb.from("hc_scenarios").select("*");
   if (error) { S.mode = "db"; render(); setStatus(/relation|does not exist|schema cache/i.test(error.message) ? "저장 표가 아직 없습니다. Supabase에서 설정 SQL을 실행해 주세요." : "자료를 불러오지 못했습니다.", true); return; }
   rows.forEach(r => { if (!dirty.has(r.id) && !saving.has(r.id)) S.scen[r.id] = rowTo(r); });
