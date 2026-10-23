@@ -232,8 +232,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
     </section>
     <aside>
       <div class="tabs" role="tablist">
-        <button class="tab on" data-tab="edit" role="tab">편집</button>
-        <button class="tab" data-tab="diff" role="tab">변경사항</button>
+        <button class="tab on" data-tab="diff" role="tab">변경사항</button>
         <button class="tab" data-tab="table" role="tab">요약표</button>
       </div>
       <div class="pane" id="pane"></div>
@@ -263,7 +262,7 @@ const RANKS = ["대표이사","상무","이사","수석","책임","선임","사�
 const FLAGS = [["promo","▲","승진"],["newlead","●","신규선임"],["review","■","승진심사대상"],["move","↔","부서이동"]];
 const LSKEY = "orgSandbox.v1", PREFKEY = "orgSandbox.pref";
 
-const S = {view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"edit", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
+const S = {view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"diff", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
 const hist = {};
 let col = null, downloads = null, firstSnap = true, pubRef = null, roSaved = false;
 const dirty = new Set(), saving = new Set(), timers = {};
@@ -529,7 +528,7 @@ function renderPane(d, diff){
   else if (S.tab === "table") pane.innerHTML = tablePane(d);
   else if (S.sel && S.sel.k === "u" && d.units.some(u => u.id === S.sel.id)) pane.innerHTML = unitPane(d, d.units.find(u => u.id === S.sel.id));
   else if (S.sel && S.sel.k === "p" && d.people.some(p => p.id === S.sel.id)) pane.innerHTML = personPane(d, d.people.find(p => p.id === S.sel.id));
-  else pane.innerHTML = helpHtml();
+  else { S.tab = "diff"; document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === "diff")); pane.innerHTML = diffPane(d, diff); }
 }
 function unitPane(d, u){
   const isRoot = u.parent == null;
@@ -613,7 +612,7 @@ function tablePane(d){
 /* ---------- actions ---------- */
 function select(k, id){
   if (S.view) return;
-  S.sel = id ? {k, id} : null; S.tab = "edit"; render({keepChart:true, keepTray:true});
+  S.sel = id ? {k, id} : null; S.tab = id ? "edit" : "diff"; render({keepChart:true, keepTray:true});
   document.querySelectorAll("#scroll .sel, #tray .sel").forEach(x => x.classList.remove("sel"));
   if (id) document.querySelectorAll(k === "u" ? `#scroll .unit[data-uid="${id}"]` : `#scroll [data-pid="${id}"], #tray [data-pid="${id}"]`).forEach(x => x.classList.add("sel"));
 }
@@ -695,7 +694,7 @@ function arm(btn, key, label){ if (armed[key] && Date.now() - armed[key] < 3500)
 document.addEventListener("click", e => {
   const a = e.target.closest("[data-act]");
   if (a) { handleAct(a.dataset.act, a, e); return; }
-  const tab = e.target.closest(".tab"); if (tab) { S.tab = tab.dataset.tab; render({keepChart:true}); return; }
+  const tab = e.target.closest(".tab"); if (tab) { S.tab = tab.dataset.tab; S.sel = null; render({}); return; }
   if (e.target.closest("#scroll, #tray, #pane")) {
     const c = e.target.closest("[data-pid]"); if (c) { select("p", c.dataset.pid); return; }
     const u = e.target.closest(".unit[data-uid]"); if (u) { select("u", u.dataset.uid); return; }
@@ -828,7 +827,7 @@ async function publishCurrent(withDiff){
   catch (e) { toast("공개하지 못했습니다. 잠시 후 다시 시도해 주세요."); }
 }
 function startPreview(){ if (!S.pubOwn) return; roSaved = S.readOnly; S.view = true; S.preview = true; S.readOnly = true; S.pub = S.pubOwn; S.tab = S.pub.diff ? "diff" : "table"; S.sel = null; $("#modal-root").innerHTML = ""; render({}); }
-function endPreview(){ S.view = false; S.preview = false; S.readOnly = roSaved; S.pub = null; S.tab = "edit"; render({}); }
+function endPreview(){ S.view = false; S.preview = false; S.readOnly = roSaved; S.pub = null; S.tab = "diff"; render({}); }
 function bootViewer(){
   S.view = true; S.readOnly = true; S.tab = "diff"; render({});
   setStatus("보기 전용");
