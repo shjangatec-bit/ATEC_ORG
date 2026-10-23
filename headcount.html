@@ -211,7 +211,7 @@ const stable = o => JSON.stringify(o, (k, v) => v && typeof v === "object" && !A
 let pref = {}; try { pref = JSON.parse(localStorage.getItem("hc.pref") || "{}") || {}; } catch (e) {}
 const savePref = () => { try { localStorage.setItem("hc.pref", JSON.stringify({cur: S.cur, cmp: S.cmp, views: S.views})); } catch (e) {} };
 
-const S = {views: Array.isArray(pref.views) && pref.views.length ? pref.views : ["rate"], scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
+const S = {open: {}, views: Array.isArray(pref.views) && pref.views.length ? pref.views : ["rate"], scen: {}, cur: null, cmp: pref.cmp || "", sel: null, readOnly: false, mode: "loading"};
 const hist = {}, dirty = new Set(), saving = new Set(), timers = {};
 let sb = null, me = null, chan = null;
 
@@ -379,7 +379,7 @@ function tableHtml(d, r, c){
   const body = (on("cnt") ? sec("① 월말 인원 (말일 재직, 건강보험 가입자)", cntCell) : "") + (on("need") ? sec("①-2 4% 유지에 필요한 월말 인원 (현재 예정·계획에 더해 최소로)", needCell) : "") + (on("avg") ? sec("② 직전 " + d.window + "개월 평균", avgCell) : "") + (on("rate") ? sec("③ 고용증가율", rateCell) : "");
   return `<h3><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">월별 표 ${tabs}</span><span class="legend"><span><span class="sw"></span>실적</span><span><span class="dl" style="display:inline"><span class="p">+1</span> <span class="m">−1</span></span> 입퇴사</span><span><span class="sw plan"></span>계획 보정</span>${Object.keys(mis).length ? `<span style="color:var(--warn)">▎기록 불일치 ${Object.keys(mis).length}개월</span>` : ""}<span class="muted">흐린 글씨 = 예상 · <i>기울임</i> = 예외 산식</span></span></h3>
   <div class="tblwrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
-  <p class="muted mini" style="margin:8px 0 0">칸을 누르면 오른쪽에서 그 달의 인원·입퇴사를 고칠 수 있습니다.</p>`;
+`;
 }
 function monthHtml(d, r){
   const k = S.sel; if (!k) { const s = suggest(d, r); return `<div class="panel"><h3><span>유지 방안</span><span class="muted mini">앞으로 ${HORIZON}개월</span></h3>
@@ -392,7 +392,7 @@ function monthHtml(d, r){
   const kd = kindOf(d, k), evs = (evsByMonth(d)[k] || []).slice().sort((a, b) => a.date.localeCompare(b.date)), mm = recon(d, r)[k];
   const editActual = k < d.baseMonth ? `<div class="fld"><label for="f-act">실적 인원</label><input id="f-act" type="number" min="0" value="${d.actual[k] ?? ""}"></div>`
     : k === d.baseMonth ? `<div class="fld"><label for="f-base">기준월 인원</label><input id="f-base" type="number" min="0" value="${d.baseCount}"></div>`
-    : `<div class="fld"><label for="f-adj">계획 보정</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}" placeholder="예: 2 또는 -1"></div><p class="muted mini" style="margin:-2px 0 8px">이 달부터 이후 모든 달에 더하거나 뺍니다. 이름 없이 숫자로만 계획할 때 씁니다.</p>`;
+    : `<div class="fld"><label for="f-adj">계획 보정</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}" placeholder="예: 2 또는 -1"></div>`;
   return `<div class="panel"><h3><span>${ymK(k)}</span><button class="btn sm" data-act="desel">닫기</button></h3>
     <p class="mini" style="margin:0 0 8px">월말 <b>${r.cnt[k] ?? "–"}명</b> (${kd === "act" ? "실적" : "예상"}) · 6개월 평균 ${fmtN(r.avg[k])}명 · 증가율 <b style="${r.rate[k] != null && r.rate[k] < d.target - 1e-12 && k > d.specialUntil ? "color:var(--accent)" : ""}">${pct(r.rate[k])}</b></p>
     ${k > d.baseMonth && r.cnt[HC.addM(k, -1)] != null ? (() => { const ev = evs, i = ev.filter(e => e.type === "in").length, o = ev.filter(e => e.type === "out").length, a = +d.adjust[k] || 0; return `<p class="mini" style="margin:-4px 0 8px">계산: 전월 ${r.cnt[HC.addM(k, -1)]}명${i ? ` <span style="color:var(--ok)">+${i}(입사)</span>` : ""}${o ? ` <span style="color:var(--accent)">−${o}(퇴사)</span>` : ""}${a ? ` <span style="color:var(--j-sales)">${a > 0 ? "+" : "−"}${Math.abs(a)}(계획 보정)</span>` : ""} = <b>${r.cnt[k]}명</b></p>`; })() : ""}
@@ -412,16 +412,15 @@ function eventsHtml(d){
   const evs = d.events.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   const isUp = e => e.date > HC.lastDay(d.baseMonth) || (e.type === "out" && e.date === HC.lastDay(d.baseMonth));
   const up = evs.filter(isUp), past = evs.filter(e => !isUp(e));
-  return `<div class="panel"><h3><span>입퇴사 기록</span>${S.readOnly ? "" : `<button class="btn sm" data-act="bulk-open">여러 건 붙여넣기</button>`}</h3>
+  return `<div class="panel"><details id="d-ev"${S.open["d-ev"] ? " open" : ""}><summary>입퇴사 기록 <span class="muted mini">(예정 ${up.length}건 · 지난 기록 ${past.length}건)</span></summary><div style="margin-top:10px">${S.readOnly ? "" : `<div class="row" style="justify-content:flex-end;margin-bottom:6px"><button class="btn sm" data-act="bulk-open">여러 건 붙여넣기</button></div>`}
     ${S.readOnly ? "" : `<div class="row"><select id="f-etype" style="flex:0 0 70px"><option value="in">입사</option><option value="out">퇴사</option></select><input id="f-ename" placeholder="이름" style="flex:1 1 80px"><input id="f-edate" type="date" style="flex:1 1 120px"></div>
-    <div class="row" style="margin-top:6px"><input id="f-enote" placeholder="메모 (선택)"><button class="btn sm primary" data-act="ev-add">추가</button></div>
-    <p class="muted mini" style="margin:6px 0 4px">퇴사는 말일 재직 기준이라, 말일에 퇴사하면 그 달까지 포함되고 다음 달부터 빠집니다.</p>`}
+    <div class="row" style="margin-top:6px"><input id="f-enote" placeholder="메모 (선택)"><button class="btn sm primary" data-act="ev-add">추가</button></div>`}
     <div class="mini" style="margin:6px 0 2px"><b>예정</b></div>${up.map(e => evRow(d, e)).join("") || `<p class="muted mini">예정된 입퇴사가 없습니다.</p>`}
     ${past.length ? `<details style="margin-top:8px" ${past.length <= 15 ? "open" : ""}><summary class="mini"><b>지난 기록 ${past.length}건</b> <span class="muted">(기록용 · 실적 숫자는 그대로)</span></summary>${past.map(e => evRow(d, e)).join("")}</details>` : ""}
-  </div>`;
+  </div></details></div>`;
 }
 function settingsHtml(d){
-  return `<div class="panel"><details><summary>계산 기준</summary><div style="margin-top:10px">
+  return `<div class="panel"><details id="d-set"${S.open["d-set"] ? " open" : ""}><summary>계산 기준</summary><div style="margin-top:10px">
     <div class="fld"><label for="f-bm">기준월</label><input id="f-bm" type="month" value="${d.baseMonth}"></div>
     <div class="row" style="margin:-2px 0 10px 88px"><button class="btn sm" data-act="roll">기준월을 다음 달로 넘기기</button></div>
     <div class="fld"><label for="f-tg">목표 증가율</label><input id="f-tg" type="number" step="0.1" value="${+(d.target * 100).toFixed(2)}"></div>
@@ -429,7 +428,7 @@ function settingsHtml(d){
     <div class="fld"><label for="f-su">예외 산식 끝</label><input id="f-su" type="month" value="${d.specialUntil}"></div>
     <div class="fld"><label for="f-sb">예외 기준 인원</label><input id="f-sb" type="number" value="${d.specialBase}"></div>
     <div class="fld"><label for="f-end">표시 끝 달</label><input id="f-end" type="month" value="${d.endMonth}"></div>
-    <p class="muted mini" style="margin:4px 0 0">건강보험 직장가입자, 말일 재직자(대표이사·휴직자 포함) 기준입니다. 평균은 해당 월을 빼고 직전 ${d.window}개월입니다. ${ym(d.specialUntil)}까지는 ${d.specialBase}명 대비, 그 뒤로는 전년 같은 달 대비로 계산합니다. '기준월 넘기기'는 달이 끝나면 그 달 인원을 실적으로 확정하고 다음 달을 기준월로 바꿉니다.</p>
+
   </div></details></div>`;
 }
 
@@ -619,6 +618,7 @@ async function boot(){
   const {data} = await sb.auth.getSession();
   if (data && data.session) afterLogin(data.session.user); else { setStatus("로그인이 필요합니다"); showLogin(); }
 }
+document.addEventListener("toggle", e => { const t = e.target; if (t && t.id && t.tagName === "DETAILS") S.open[t.id] = t.open; }, true);
 let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (D()) render(); }, 200); });
 boot();
 })();
