@@ -63,6 +63,12 @@ select,input[type=text],input:not([type]),textarea{border:1px solid var(--line);
 .sw{width:14px;height:10px;border-radius:2px;border:1px solid var(--line);display:inline-block}
 .sw.band{background:var(--band);border-color:var(--band)} .sw.chg{background:var(--chg-soft);border-color:var(--chg)} .sw.new{background:var(--accent-soft);border-color:var(--accent)} .sw.out{border-style:dashed;border-color:var(--out)}
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
+.rk{font-size:10.5px;color:var(--muted);margin-right:2px}
+.chip.hit .rk{color:inherit}
+body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-rank,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
+body.present main{grid-template-columns:minmax(0,1fr)}
+body.present .canvas{height:auto}
+.comp td.n,.comp th.n{min-width:30px}
 .canvas{display:flex;flex-direction:column;min-height:0;min-width:0}
 .scroll{flex:1;overflow:auto;min-height:0}
 .tree{width:max-content;margin:0 auto;padding:22px 24px 40px}
@@ -186,6 +192,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
     <div class="brand">조직도 샌드박스</div>
     <span id="vtitle" hidden></span>
     <button class="btn primary" id="b-endprev" hidden>미리보기 끝내기</button>
+    <button class="btn primary" id="b-endpresent" hidden>회의 보기 끝내기</button>
     <div class="grp">
       <select id="scen" aria-label="조직안 선택"></select>
       <input id="sname" aria-label="조직안 이름" placeholder="조직안 이름">
@@ -198,6 +205,8 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <button class="btn" id="b-undo" title="되돌리기 (Ctrl+Z)">↶ 되돌리기</button>
       <button class="btn" id="b-redo" title="다시 실행 (Ctrl+Y)">↷</button>
       <button class="btn on" id="b-people">인원 표시</button>
+      <button class="btn" id="b-rankshow">직급 표시</button>
+      <button class="btn" id="b-present" title="도구와 오른쪽 칸을 숨기고 조직도만 크게 봅니다 (Esc로 끝내기)">회의 보기</button>
       <button class="btn on" id="b-moves" title="비교 기준안과 소속이 다른 사람을 ↔로 표시합니다">이동자 표시</button>
       <button class="btn" id="b-cmp">비교 표시</button>
       <button class="btn sm" id="b-zo" aria-label="축소">－</button><span id="zv" class="mini muted">100%</span><button class="btn sm" id="b-zi" aria-label="확대">＋</button>
@@ -265,7 +274,7 @@ const RANKS = ["대표이사","상무","이사","수석","책임","선임","사�
 const FLAGS = [["promo","▲","승진"],["newlead","●","신규선임"],["review","■","승진심사대상"],["move","↔","부서이동"]];
 const LSKEY = "orgSandbox.v1", PREFKEY = "orgSandbox.pref";
 
-const S = {view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"diff", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
+const S = {present:false, showRank:false, view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"diff", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
 const hist = {};
 let col = null, downloads = null, firstSnap = true, pubRef = null, roSaved = false;
 const dirty = new Set(), saving = new Set(), timers = {};
@@ -278,9 +287,10 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 function lsGet(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 const pref = Object.assign({}, lsGet(PREFKEY) || {});
-function savePref(){ pref.cur = S.cur; pref.base = S.base; pref.showPeople = S.showPeople; pref.showMoves = S.showMoves; pref.zoom = S.zoom; lsSet(PREFKEY, pref); }
+function savePref(){ pref.cur = S.cur; pref.base = S.base; pref.showPeople = S.showPeople; pref.showMoves = S.showMoves; pref.showRank = S.showRank; pref.zoom = S.zoom; lsSet(PREFKEY, pref); }
 if (typeof pref.showPeople === "boolean") S.showPeople = pref.showPeople;
 if (typeof pref.showMoves === "boolean") S.showMoves = pref.showMoves;
+if (typeof pref.showRank === "boolean") S.showRank = pref.showRank;
 if (typeof pref.zoom === "number") S.zoom = pref.zoom;
 
 /* ---------- model helpers ---------- */
@@ -442,7 +452,10 @@ function renderHeader(){
   sel.innerHTML = l.map(([id, s]) => `<option value="${id}"${id === S.cur ? " selected" : ""}>${esc(s.name || "이름 없는 안")}</option>`).join("") || `<option>조직안 없음</option>`;
   const nm = $("#sname"); if (document.activeElement !== nm) nm.value = S.scen[S.cur] ? S.scen[S.cur].name : "";
   const has = S.view ? !!S.pub : !!S.scen[S.cur];
-  const vt = $("#vtitle"); vt.hidden = !S.view; vt.innerHTML = S.view && S.pub ? esc(S.pub.name) + `<small>${fmtDate(S.pub.publishedAt)} 공개본 · 보기 전용</small>` : "";
+  const vt = $("#vtitle"); vt.hidden = !(S.view || S.present);
+  vt.innerHTML = S.view && S.pub ? esc(S.pub.name) + `<small>${fmtDate(S.pub.publishedAt)} 공개본 · 보기 전용</small>` : (S.present && S.scen[S.cur] ? esc(S.scen[S.cur].name) : "");
+  $("#b-endpresent").hidden = !S.present; document.body.classList.toggle("present", S.present);
+  $("#b-rankshow").classList.toggle("on", S.showRank);
   $("#b-endprev").hidden = !(S.view && S.preview);
   document.body.classList.toggle("viewer", S.view);
   ["#sname","#b-dup","#b-del","#b-exp","#b-pub","#b-people","#b-moves","#b-cmp","#q"].forEach(s => $(s).disabled = !has);
@@ -483,7 +496,7 @@ function chipHtml(d, p, u, diff){
   const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, from ? "이전 소속: " + from : "", p.note, "더블클릭해서 이름 수정"].filter(Boolean).join(" · ");
   const mv = from || (p.flags || []).includes("move");
   const mk = marks(p).replace("↔", "");
-  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${esc(pname(p))}</span>`;
+  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}</span>`;
 }
 function unitHtml(d, u, lv, diff){
   const {n, v} = count(d, u.id);
@@ -621,12 +634,32 @@ function missingRankHtml(d){
   if (!m.length) return `<h4>직급·연차 미입력</h4><p class="muted mini">모두 입력되어 있습니다.</p>`;
   return `<h4>직급·연차 미입력 ${m.length}명</h4><div class="chips" style="padding:0">${m.map(p => { const u = d.units.find(x => x.id === p.unit); return chipHtml(d, p, u || null, null).replace("</span>", ` <span class="muted">${esc(u ? u.name : "미배치")}${p.rank ? " · " + esc(p.rank) : " · 직급 없음"}${p.rankYears ? "" : " · 연차 없음"}</span></span>`); }).join("")}</div><p class="muted mini">이름을 누르면 바로 고칠 수 있습니다.</p>`;
 }
+function rankCompHtml(d){
+  const root = rootOf(d), groups = [];
+  const direct = d.people.filter(p => p.unit === root.id);
+  if (direct.length) groups.push({name: root.name + " 직속", ppl: direct});
+  kids(d, root.id).forEach(u => { const ids = new Set(subtree(d, u.id)); groups.push({name: u.name, ppl: d.people.filter(p => ids.has(p.unit))}); });
+  const all = d.people.filter(p => p.unit);
+  const used = new Set(all.filter(p => !p.vacant && p.rank).map(p => p.rank.trim()));
+  const cols = [...RANK_ORDER.slice().reverse().filter(r => used.has(r)), ...[...used].filter(r => !RANK_ORDER.includes(r))];
+  const cnt = (ppl, r) => ppl.filter(p => !p.vacant && (p.rank || "").trim() === r).length;
+  const none = ppl => ppl.filter(p => !p.vacant && !(p.rank || "").trim()).length;
+  const vac = ppl => ppl.filter(p => p.vacant).length;
+  const cell = n => `<td class="n">${n || ""}</td>`;
+  const row = (name, ppl, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${esc(name)}</td>${cols.map(r => cell(cnt(ppl, r))).join("")}${cell(none(ppl))}${cell(vac(ppl))}<td class="n">${ppl.length}</td></tr>`;
+  const tot = all.length || 1, exec = all.filter(p => !p.vacant && rankLv(p.rank) >= rankLv("이사")).length;
+  const pct = n => Math.round(n / tot * 1000) / 10 + "%";
+  return `<h4>조직별 직급 구성</h4><div class="tblwrap"><table class="comp"><thead><tr><th>조직</th>${cols.map(r => `<th class="n">${esc(r)}</th>`).join("")}<th class="n">미입력</th><th class="n">채용예정</th><th class="n">계</th></tr></thead><tbody>` +
+    groups.map(g => row(g.name, g.ppl)).join("") + row("합계", all, "l1") +
+    `<tr><td class="muted">비율</td>${cols.map(r => `<td class="n muted">${pct(cnt(all, r))}</td>`).join("")}<td class="n muted">${pct(none(all))}</td><td class="n muted">${pct(vac(all))}</td><td class="n muted">100%</td></tr></tbody></table></div>
+    <p class="muted mini">임원(이사 이상) ${exec}명 · ${pct(exec)} · 미배치 인원은 빠집니다.</p>`;
+}
 function tablePane(d){
   const rows = tableRows(d);
   return `<h3><span>요약표</span><button class="btn sm" data-act="copytsv">엑셀용 복사</button></h3>
   <div class="tblwrap"><table><thead><tr><th>조직</th><th>조직장</th><th class="n">인원</th>${JOBS.map(j => `<th class="n">${j}</th>`).join("")}</tr></thead><tbody>` +
   rows.map(r => `<tr${r.dep === 1 ? ' class="l1"' : ""}><td>${"　".repeat(Math.max(0, r.dep - 1))}${esc(r.u.name)}</td><td>${esc(headLabel(d, r.u))}</td><td class="n">${r.n}${r.v ? "<span class='muted'>(" + r.v + ")</span>" : ""}</td>${JOBS.map(j => `<td class="n">${r.jc[j] || ""}</td>`).join("")}</tr>`).join("") +
-  `</tbody></table></div><p class="muted mini">괄호는 채용예정 인원입니다. 엑셀용 복사에는 조직별 명단도 함께 들어갑니다.</p>` + missingRankHtml(d);
+  `</tbody></table></div><p class="muted mini">괄호는 채용예정 인원입니다. 엑셀용 복사에는 조직별 명단도 함께 들어갑니다.</p>` + rankCompHtml(d) + missingRankHtml(d);
 }
 
 /* ---------- actions ---------- */
@@ -745,7 +778,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "F2" && e.target.matches("#scroll .unit[data-uid]") && !S.readOnly) { e.preventDefault(); editUnitName(e.target.querySelector(".u-name")); }
   if (e.key === "Enter" && e.target.id === "f-pnew") handleAct("padd");
   if (e.key === "Enter" && e.target.id === "f-cnew") handleAct("cadd");
-  if (e.key === "Escape") { const m = $("#modal-root"); if (m.innerHTML) m.innerHTML = ""; }
+  if (e.key === "Escape") { const m = $("#modal-root"); if (m.innerHTML) m.innerHTML = ""; else if (S.present && !e.target.matches("input, textarea")) setPresent(false); }
 });
 
 function handleAct(act, el){
@@ -827,6 +860,11 @@ $("#b-dup").onclick = () => { const s = S.scen[S.cur]; if (s) { addScenario(s.na
 $("#b-new").onclick = () => addScenario("새 조직안", blankData());
 $("#b-del").onclick = e => { if (!S.scen[S.cur]) return; if (!arm(e.target, "sdel", "한 번 더 누르면 안 삭제")) return; const n = S.scen[S.cur].name; deleteScenario(S.cur); toast("‘" + n + "’ 안을 삭제했습니다."); };
 $("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
+$("#b-rankshow").onclick = () => { S.showRank = !S.showRank; savePref(); render({keepPanel:true}); };
+function setPresent(on){ S.present = on; if (on) { S.sel = null; try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {} } else { try { document.fullscreenElement && document.exitFullscreen(); } catch (e) {} } render({}); }
+$("#b-present").onclick = () => setPresent(true);
+$("#b-endpresent").onclick = () => setPresent(false);
+document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && S.present) setPresent(false); });
 $("#b-people").onclick = () => { S.showPeople = !S.showPeople; savePref(); render({keepPanel:true}); };
 $("#b-moves").onclick = () => { S.showMoves = !S.showMoves; savePref(); if (S.showMoves && !diffNow()) toast("비교할 기준안이 필요합니다. ‘변경사항’ 탭에서 기준안을 고르세요."); render({keepPanel:true}); };
 $("#b-cmp").onclick = () => { S.compare = !S.compare; if (S.compare && !diffNow()) toast("비교할 다른 안이 필요합니다. ‘복제’로 안을 하나 더 만드세요."); render({keepPanel:true}); };
