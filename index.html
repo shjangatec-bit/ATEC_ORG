@@ -104,7 +104,8 @@ body.present .canvas{height:auto}
 .unit.dz-into{outline:2px dashed var(--accent);outline-offset:3px}
 .unit.dz-before::before,.unit.dz-after::after{content:"";position:absolute;background:var(--accent);border-radius:2px}
 .lv-team.dz-before::before{left:0;right:0;top:-6px;height:3px} .lv-team.dz-after::after{left:0;right:0;bottom:-6px;height:3px}
-.lv-div.dz-before::before{top:0;bottom:0;left:-9px;width:3px} .lv-div.dz-after::after{top:0;bottom:0;right:-9px;width:3px}
+.lv-div.dz-before::before,.l1.dz-before::before{top:0;bottom:0;left:-9px;right:auto;height:auto;width:3px} .lv-div.dz-after::after,.l1.dz-after::after{top:0;bottom:0;right:-9px;left:auto;height:auto;width:3px}
+.col-spacer{align-self:center;width:0;border-left:1.5px solid var(--line)}
 .dtag{position:absolute;top:-9px;right:6px;font-size:10.5px;font-weight:700;padding:0 6px;border-radius:9px;line-height:17px;z-index:1}
 .dtag-new{background:var(--accent);color:var(--accent-ink)} .dtag-chg{background:var(--chg);color:#fff}
 .chips{display:flex;flex-wrap:wrap;gap:3px;padding:6px 7px 7px}
@@ -535,10 +536,24 @@ function renderChart(d, diff){
   const r = rootOf(d), l1 = kids(d, r.id), sc = $("#scroll");
   const keep = {x: sc.scrollLeft, y: sc.scrollTop};
   let h = `<div class="tree" style="zoom:${S.zoom}"><div class="root-wrap${l1.length ? " has-kids" : ""}">${unitHtml(d, r, "root", diff)}</div>`;
-  if (l1.length) h += `<div class="cols">` + l1.map(u => `<div class="col">${unitHtml(d, u, "div", diff)}${kidsHtml(d, u, diff)}</div>`).join("") + `</div>`;
+  if (l1.length) h += `<div class="cols">` + l1.map(u => BIG.has(u.type)
+      ? `<div class="col">${unitHtml(d, u, "div", diff)}${kidsHtml(d, u, diff)}</div>`
+      : `<div class="col col-team"><div class="col-spacer"></div>${unitHtml(d, u, "team", diff).replace('class="unit ', 'class="unit l1 ')}${kidsHtml(d, u, diff)}</div>`).join("") + `</div>`;
   h += `</div>`;
   sc.innerHTML = h; sc.scrollLeft = keep.x; sc.scrollTop = keep.y;
+  alignTeamTier();
 }
+function alignTeamTier(){
+  const sp = document.querySelectorAll("#scroll .col-spacer"); if (!sp.length) return;
+  let top = 0;
+  document.querySelectorAll("#scroll .col:not(.col-team)").forEach(col => {
+    const first = col.querySelector(":scope > .kids > .sub > .unit"); if (!first) return;
+    let y = 0, el = first; while (el && el !== col) { y += el.offsetTop; el = el.offsetParent; }
+    if (el === col) top = top ? Math.min(top, y - 18) : y - 18;
+  });
+  sp.forEach(x => x.style.height = (top || 70) + "px");
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => alignTeamTier());
 function renderTray(d, diff){
   const un = d.people.filter(p => !p.unit);
   $("#tray").innerHTML = `<span class="tray-label">미배치 ${un.length}명</span>` + un.map(p => chipHtml(d, p, null, diff)).join("") +
@@ -1112,7 +1127,7 @@ function dropTarget(e){
   if (tid === drag.id || subtree(d, drag.id).includes(tid)) return null;
   if (el.classList.contains("lv-root")) return {el, id: tid, pos:"into"};
   const r = el.getBoundingClientRect(); let pos = "into";
-  if (el.classList.contains("lv-div")) { const x = e.clientX - r.left; if (x < r.width * .22) pos = "before"; else if (x > r.width * .78) pos = "after"; }
+  if (el.classList.contains("lv-div") || el.classList.contains("l1")) { const x = e.clientX - r.left; if (x < r.width * .22) pos = "before"; else if (x > r.width * .78) pos = "after"; }
   else { const y = e.clientY - r.top, edge = Math.min(14, r.height * .3); if (y < edge) pos = "before"; else if (y > r.height - edge) pos = "after"; }
   return {el, id: tid, pos};
 }
