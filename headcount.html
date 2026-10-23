@@ -407,7 +407,10 @@ function monthHtml(d, r){
     ${editActual}
     <div class="mini" style="margin-top:4px"><b>이 달 인원 변동</b> ${evs.length ? "" : `<span class="muted">없음</span>`}</div>
     ${evs.map(e => evRow(d, e)).join("")}
-    ${k > d.baseMonth ? `<div class="row" style="margin-top:8px"><button class="btn sm" data-act="quick-in" data-m="${k}">이 달 입사 예정 추가</button><button class="btn sm" data-act="quick-out" data-m="${k}">이 달 퇴사 예정 추가</button></div>` : ""}
+    ${k > d.baseMonth && !S.readOnly ? (S.quick && S.quick.m === k ? `<div style="margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px"><div class="mini" style="margin-bottom:6px"><b>${S.quick.type === "in" ? "입사" : "퇴사"} 예정 추가</b></div>
+      <div class="row" style="flex-wrap:wrap;gap:6px"><input id="q-name" placeholder="이름" style="flex:1 1 70px;min-width:0"><input id="q-date" type="date" value="${S.quick.type === "in" ? k + "-01" : k + "-15"}" min="${k}-01" style="flex:1 1 120px;min-width:0"><input id="q-unit" list="ev-groups" placeholder="소속" style="flex:1 1 90px;min-width:0">
+      <span style="display:flex;gap:6px;margin-left:auto"><button class="btn sm" data-act="quick-cancel">취소</button><button class="btn sm primary" data-act="quick-save">추가</button></span></div></div>`
+      : `<div class="row" style="margin-top:8px"><button class="btn sm" data-act="quick-in" data-m="${k}">이 달 입사 예정 추가</button><button class="btn sm" data-act="quick-out" data-m="${k}">이 달 퇴사 예정 추가</button></div>`) : ""}
     <div class="fld" style="margin-top:10px"><label for="f-note">메모</label><input id="f-note" value="${esc(d.notes[k] || "")}" placeholder="이 달 메모"></div>
   </div>`;
 }
@@ -511,7 +514,14 @@ function act(name, el){
       mutate(d => { d.events.push(Object.assign({id: uid("e"), type, name, date, note}, unit ? {unit} : {})); });
       S.sel = HC.monthOf(date); render(); break;
     }
-    case "quick-in": case "quick-out": { const k = el.dataset.m; $("#f-etype").value = name === "quick-in" ? "in" : "out"; $("#f-edate").value = name === "quick-in" ? k + "-01" : HC.lastDay(k).slice(0, 8) + "15"; $("#f-ename").focus(); toast("이름과 날짜를 확인하고 '추가'를 누르세요."); break; }
+    case "quick-in": case "quick-out": { S.quick = {m: el.dataset.m, type: name === "quick-in" ? "in" : "out"}; render(); setTimeout(() => { const n = $("#q-name"); if (n) n.focus(); }, 0); break; }
+    case "quick-cancel": S.quick = null; render(); break;
+    case "quick-save": {
+      const nm = $("#q-name").value.trim(), dt = $("#q-date").value, unit = $("#q-unit").value.trim(), type = S.quick.type;
+      if (!nm) { $("#q-name").focus(); return; } if (!dt) { $("#q-date").focus(); return; }
+      S.quick = null; mutate(d => { d.events.push(Object.assign({id: uid("e"), type, name: nm, date: dt, note: ""}, unit ? {unit} : {})); return nm + " " + (type === "in" ? "입사" : "퇴사") + " 예정을 넣었습니다."; });
+      S.sel = HC.monthOf(dt); render(); break;
+    }
     case "ev-edit": S.editEv = el.dataset.id; render(); setTimeout(() => { const n = document.querySelector(".evedit .ee-name"); if (n) n.focus(); }, 0); break;
     case "ev-cancel": S.editEv = null; render(); break;
     case "ev-save": {
@@ -576,6 +586,7 @@ $("#b-del").onclick = e => { if (!S.scen[S.cur] || S.readOnly) return; if (!arme
 $("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
 document.addEventListener("keydown", e => {
   const er = e.target.closest && e.target.closest(".evedit");
+  if (e.key === "Enter" && e.target.closest && e.target.closest("#q-name,#q-date,#q-unit")) { e.preventDefault(); $('[data-act="quick-save"]').click(); return; }
   if (er && e.key === "Enter") { e.preventDefault(); er.querySelector('[data-act="ev-save"]').click(); return; }
   if (er && e.key === "Escape") { S.editEv = null; render(); return; }
   if (e.target.matches("input, textarea, select")) return;
