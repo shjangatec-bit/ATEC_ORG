@@ -220,7 +220,7 @@ const hist = {}, dirty = new Set(), saving = new Set(), timers = {};
 let sb = null, me = null, chan = null;
 
 function blank(){ return {version:1, startMonth:"2024-11", endMonth:"2029-12", window:6, target:0.04, specialUntil:"2026-04", specialBase:45, actual:{}, baseMonth:"2026-10", baseCount:0, adjust:{}, events:[], notes:{}}; }
-function norm(d){ const b = blank(); d = Object.assign(b, d || {}); d.actual = d.actual || {}; d.adjust = d.adjust || {}; d.noHire = Array.isArray(d.noHire) ? d.noHire : []; d.roster = Array.isArray(d.roster) ? d.roster : []; delete d.rosterExtra; d.events = Array.isArray(d.events) ? d.events : []; return d; }
+function norm(d){ const b = blank(); d = Object.assign(b, d || {}); d.actual = d.actual || {}; d.adjust = d.adjust || {}; d.noHire = Array.isArray(d.noHire) ? d.noHire : []; d.roster = Array.isArray(d.roster) ? d.roster : []; if (!d.rosterAsOf) d.rosterAsOf = d.baseMonth; delete d.rosterExtra; d.events = Array.isArray(d.events) ? d.events : []; return d; }
 const D = () => S.scen[S.cur] && S.scen[S.cur].data;
 const list = () => Object.entries(S.scen).sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0) || (a[1].updatedAt || 0) - (b[1].updatedAt || 0));
 
@@ -431,7 +431,7 @@ const ROSTER_FROM = "2026-01";
 const effAt = (e, T) => e.type === "in" ? e.date <= T : e.date < T;
 const groupList = d => [...new Set((d.roster || []).map(p => p.group).filter(Boolean).concat(d.events.map(e => e.unit).filter(Boolean)))];
 function rosterFor(d, m){
-  const Eb = HC.lastDay(d.baseMonth), E = HC.lastDay(m), Ep = HC.lastDay(HC.addM(m, -1));
+  const Eb = HC.lastDay(d.rosterAsOf || d.baseMonth), E = HC.lastDay(m), Ep = HC.lastDay(HC.addM(m, -1));
   const st = new Map();
   (d.roster || []).forEach((p, i) => { const k = rkey(p.name); if (!st.has(k)) st.set(k, {p: Object.assign({i}, p), on: true}); });
   const evs = d.events.filter(e => e.date && e.name);
@@ -509,14 +509,6 @@ function act(name, el){
       mutate(d => { d.events.push(Object.assign({id: uid("e"), type, name, date, note}, unit ? {unit} : {})); });
       S.sel = HC.monthOf(date); render(); break;
     }
-    case "quick-in": case "quick-out": { S.quick = {m: el.dataset.m, type: name === "quick-in" ? "in" : "out"}; render(); setTimeout(() => { const n = $("#q-name"); if (n) n.focus(); }, 0); break; }
-    case "quick-cancel": S.quick = null; render(); break;
-    case "quick-save": {
-      const nm = $("#q-name").value.trim(), dt = $("#q-date").value, unit = $("#q-unit").value.trim(), type = S.quick.type;
-      if (!nm) { $("#q-name").focus(); return; } if (!dt) { $("#q-date").focus(); return; }
-      S.quick = null; mutate(d => { d.events.push(Object.assign({id: uid("e"), type, name: nm, date: dt, note: ""}, unit ? {unit} : {})); return nm + " " + (type === "in" ? "입사" : "퇴사") + " 예정을 넣었습니다."; });
-      S.sel = HC.monthOf(dt); render(); break;
-    }
     case "ev-edit": S.editEv = el.dataset.id; render(); setTimeout(() => { const n = document.querySelector(".evedit .ee-name"); if (n) n.focus(); }, 0); break;
     case "ev-cancel": S.editEv = null; render(); break;
     case "ev-save": {
@@ -544,10 +536,8 @@ function moveBase(d, nb){
   const r = HC.calc(d), ob = d.baseMonth;
   if (nb > ob) {
     for (let m = ob; m < nb; m = HC.addM(m, 1)) d.actual[m] = r.cnt[m];
-    const rs = rosterFor(d, nb); d.roster = rs.list.map(p => ({name: p.name, unit: p.unit || "", group: p.group || "기타"}));
     d.baseCount = r.cnt[nb]; Object.keys(d.adjust).forEach(k => { if (k <= nb) delete d.adjust[k]; });
   } else {
-    const rs = rosterFor(d, nb); d.roster = rs.list.map(p => ({name: p.name, unit: p.unit || "", group: p.group || "기타"}));
     d.baseCount = d.actual[nb] ?? r.cnt[nb] ?? d.baseCount;
     Object.keys(d.actual).forEach(k => { if (k >= nb) delete d.actual[k]; });
   }
@@ -567,7 +557,6 @@ document.addEventListener("change", e => {
   else if (id === "f-base") mutate(d => { d.baseCount = num(t.value) || 0; });
   else if (id === "f-nohire") mutate(d => { const set = new Set(d.noHire || []); if (t.checked) set.add(k); else set.delete(k); d.noHire = [...set].sort(); });
   else if (id === "f-adj") mutate(d => { const v = num(t.value); if (!v) delete d.adjust[k]; else d.adjust[k] = v; });
-  else if (id === "f-note") mutate(d => { if (t.value.trim()) d.notes[k] = t.value.trim(); else delete d.notes[k]; });
   else if (id === "f-bm" && t.value && t.value !== d.baseMonth) mutate(d => moveBase(d, t.value));
   else if (id === "f-tg") mutate(d => { d.target = (num(t.value) || 0) / 100; });
   else if (id === "f-win") mutate(d => { d.window = Math.max(1, Math.min(12, num(t.value) || 6)); });
@@ -581,7 +570,6 @@ $("#b-del").onclick = e => { if (!S.scen[S.cur] || S.readOnly) return; if (!arme
 $("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
 document.addEventListener("keydown", e => {
   const er = e.target.closest && e.target.closest(".evedit");
-  if (e.key === "Enter" && e.target.closest && e.target.closest("#q-name,#q-date,#q-unit")) { e.preventDefault(); $('[data-act="quick-save"]').click(); return; }
   if (er && e.key === "Enter") { e.preventDefault(); er.querySelector('[data-act="ev-save"]').click(); return; }
   if (er && e.key === "Escape") { S.editEv = null; render(); return; }
   if (e.target.matches("input, textarea, select")) return;
