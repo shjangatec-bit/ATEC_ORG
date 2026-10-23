@@ -268,7 +268,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
 const BIG = new Set(["사업부","본부","실","연구실","연구소","공장","대표"]);
 const TYPES = ["사업부","본부","실","연구실","연구소","공장","팀","파트","기타"];
 const SUMORDER = ["사업부","본부","연구소","연구실","공장","실","팀","파트"];
-const STATUS = [["","기존"],["변경","변경"],["신설","신설"],["외주","외주"]];
+const STATUS = [["","자동"],["기존","기존"],["변경","변경"],["신설","신설"],["외주","외주"]];
 const STCLS = {"변경":"st-chg","신설":"st-new","외주":"st-out"};
 const JOBS = ["영업","사무","연구","기능"];
 const JOBCLS = {"영업":"j-s","사무":"j-o","연구":"j-r","기능":"j-t"};
@@ -327,13 +327,14 @@ function summary(d){
   const n = count(d, r.id).n;
   return "<" + parts.join(",") + ". " + n + "명>";
 }
-function blankData(){ return {units:[{id:"root",name:"대표이사",type:"대표",status:"",parent:null,order:0,headId:null,headText:"",note:""}], people:[]}; }
+function blankData(){ return {statusAuto:1, units:[{id:"root",name:"대표이사",type:"대표",status:"",parent:null,order:0,headId:null,headText:"",note:""}], people:[]}; }
 function normalize(d){
   d = d && typeof d === "object" ? d : blankData();
   if (!Array.isArray(d.units)) d.units = []; if (!Array.isArray(d.people)) d.people = [];
   if (!d.units.some(u => u.parent == null)) d.units.unshift(blankData().units[0]);
   const ids = new Set(d.units.map(u => u.id));
   d.units.forEach((u,i) => { u.order = typeof u.order === "number" ? u.order : i; if (u.parent != null && !ids.has(u.parent)) u.parent = rootOf(d).id; u.status = u.status || ""; u.headText = u.headText || ""; u.note = u.note || ""; });
+  if (!d.statusAuto) { d.units.forEach(u => { if (u.status === "변경" || u.status === "신설") u.status = ""; }); d.statusAuto = 1; }
   d.people.forEach(p => { p.flags = Array.isArray(p.flags) ? p.flags : []; if (p.unit && !ids.has(p.unit)) p.unit = null; p.rank = p.rank || ""; p.note = p.note || ""; p.job = p.job || "사무"; });
   return d;
 }
@@ -389,7 +390,7 @@ function nextOrder(){ return Math.max(-1, ...Object.values(S.scen).map(s => s.or
 function addScenario(name, data, note){
   const id = uid("s");
   S.scen[id] = {name, note: note || "", order: nextOrder(), updatedAt: Date.now(), data: normalize(data)};
-  if (S.cur && S.cur !== id) S.base = S.cur;
+  const nb = nowBaseId(); if (nb && nb !== id) S.base = nb; else if (S.cur && S.cur !== id) S.base = S.cur;
   S.cur = id; S.sel = null; markDirty(id); savePref(); render({});
   return id;
 }
@@ -450,6 +451,14 @@ function computeDiff(B, C){
 function diffNow(){ if (S.view) return S.pub && S.pub.diff ? Object.assign({moved:new Set(), tag:{}, from:{}, units:[], people:[], rows:[]}, S.pub.diff) : null; const b = S.scen[S.base], c = S.scen[S.cur]; return b && c && S.base !== S.cur ? computeDiff(b.data, c.data) : null; }
 
 /* ---------- render ---------- */
+function nowBaseId(){ const l = scenList().filter(([id]) => isNowScen(id)); return l.length ? l[0][0] : null; }
+let AUTO = {};
+function calcAuto(d){
+  AUTO = {}; const bid = nowBaseId();
+  if (!d || S.view || !bid || bid === S.cur || !S.scen[bid]) return;
+  try { const t = computeDiff(S.scen[bid].data, d).tag; Object.keys(t).forEach(id => AUTO[id] = t[id].k === "new" ? "신설" : "변경"); } catch (e) {}
+}
+function effStatus(u){ return u.status === "기존" ? "" : (u.status || AUTO[u.id] || ""); }
 function render(o){
   o = o || {};
   if (!S.view) pickDefaults();
@@ -457,6 +466,7 @@ function render(o){
   renderHeader();
   const d = D();
   if (!d) { renderEmpty(); return; }
+  calcAuto(d);
   const diff = diffNow();
   renderStrip(d, diff);
   if (!o.keepChart) renderChart(d, diff);
@@ -519,7 +529,7 @@ function unitHtml(d, u, lv, diff){
   const {n, v} = count(d, u.id);
   const big = BIG.has(u.type) || lv === "root";
   const tag = S.compare && diff && diff.tag[u.id];
-  const cls = ["unit", "lv-" + lv, big ? "big" : "small", STCLS[u.status] || "", S.sel && S.sel.k === "u" && S.sel.id === u.id ? "sel" : ""].filter(Boolean).join(" ");
+  const cls = ["unit", "lv-" + lv, big ? "big" : "small", STCLS[effStatus(u)] || "", S.sel && S.sel.k === "u" && S.sel.id === u.id ? "sel" : ""].filter(Boolean).join(" ");
   let ppl = S.showPeople ? inUnit(d, u.id) : [];
   ppl = ppl.slice().sort((a,b) => (b.id === u.headId) - (a.id === u.headId));
   return `<div class="${cls}" data-uid="${esc(u.id)}" draggable="${lv !== "root" && !S.readOnly}" tabindex="0">
@@ -607,7 +617,7 @@ function unitPane(d, u){
   return `<h3><span>${esc(u.name)}</span><button class="btn sm" data-act="desel">닫기</button></h3>
   <div class="fld"><label for="f-uname">조직명</label><input id="f-uname" value="${esc(u.name)}"></div>
   <div class="fld"><label for="f-utype">유형</label><select id="f-utype">${(isRoot ? ["대표"] : TYPES).map(t => `<option${t === u.type ? " selected" : ""}>${t}</option>`).join("")}</select></div>
-  <div class="fld"><label for="f-ustat">구분</label><select id="f-ustat">${STATUS.map(s => `<option value="${s[0]}"${s[0] === u.status ? " selected" : ""}>${s[1]}</option>`).join("")}</select></div>
+  <div class="fld"><label for="f-ustat">구분</label><select id="f-ustat">${STATUS.map(s => `<option value="${s[0]}"${s[0] === u.status ? " selected" : ""}>${s[0] ? s[1] : "자동 · " + (AUTO[u.id] || "기존")}</option>`).join("")}</select></div>
   <div class="fld"><label for="f-uhead">조직장</label><select id="f-uhead"><option value=""${hv === "" ? " selected" : ""}>공석</option><option value="__text"${hv === "__text" ? " selected" : ""}>직접 입력 (모회사·외부 등)</option>
     ${mine.length ? `<optgroup label="이 조직 소속">${mine.map(pOpt).join("")}</optgroup>` : ""}<optgroup label="다른 조직 (겸직)">${others.map(pOpt).join("")}</optgroup></select></div>
   ${hv === "__text" ? `<div class="fld"><label for="f-uheadt">표기</label><input id="f-uheadt" value="${esc(u.headText)}" placeholder="예: 모) 이사 홍길동"></div>` : ""}
@@ -834,7 +844,7 @@ function handleAct(act, el){
       const src = otherPeople(d).find(x => x.p.id === pid); if (!src) return;
       mutate(d => { const c = clone(src.p); c.unit = sel.id; c.flags = (c.flags || []).filter(f => f !== "promo" && f !== "newlead"); d.people.push(c); return c.name + "님을 가져왔습니다. 직급·연차가 이 안 기준에 맞는지 확인하세요."; }); break; }
     case "vadd": mutate(d => { d.people.push({id: uid("v-"), name:"채용예정", rank:"", job: $("#f-pjob") ? $("#f-pjob").value : "사무", flags:[], note:"", vacant:true, unit: sel.id}); }); break;
-    case "cadd": { const name = ($("#f-cnew").value || "").trim() || "새 팀"; const id = uid("u-"); mutate(d => { d.units.push({id, name, type: inferType(name, "팀"), status:"신설", parent: sel.id, order: kids(d, sel.id).length, headId:null, headText:"", note:""}); }); S.sel = {k:"u", id}; render({}); break; }
+    case "cadd": { const name = ($("#f-cnew").value || "").trim() || "새 팀"; const id = uid("u-"); mutate(d => { d.units.push({id, name, type: inferType(name, "팀"), status:"", parent: sel.id, order: kids(d, sel.id).length, headId:null, headText:"", note:""}); }); S.sel = {k:"u", id}; render({}); break; }
     case "merge": { const t = $("#f-merge").value; if (!t) { toast("통합할 조직을 먼저 고르세요."); return; } const tn = unitName(d, t), sn = sel.name;
       mutate(d => { d.people.forEach(p => { if (p.unit === sel.id) p.unit = t; }); kids(d, sel.id).forEach(k => { k.parent = t; k.order = 999 + k.order; }); kids(d, t).forEach((x,i) => x.order = i); d.units = d.units.filter(x => x.id !== sel.id); kids(d, sel.parent).forEach((x,i) => x.order = i); return sn + "을(를) " + tn + "(으)로 통합했습니다."; });
       S.sel = {k:"u", id:t}; render({}); break; }
@@ -842,7 +852,7 @@ function handleAct(act, el){
     case "pdel": if (!arm(el, "pdel", "한 번 더 누르면 삭제")) return; mutate(d => { d.units.forEach(u => { if (u.headId === sel.id) u.headId = null; }); d.people = d.people.filter(p => p.id !== sel.id); }); S.sel = null; render({}); break;
     case "mkhead": mutate(d => { const u = d.units.find(x => x.id === sel.unit); u.headId = sel.id; u.headText = ""; }); break;
     case "copytsv": { const rows = tableRows(d); const lines = [["상위조직","조직","유형","구분","조직장","인원","채용예정",...JOBS,"명단"].join("\t")];
-      rows.forEach(r => lines.push([unitName(d, r.u.parent === null ? "" : r.u.parent).replace("미배치",""), r.u.name, r.u.type, r.u.status || "기존", headLabel(d, r.u), r.n, r.v, ...JOBS.map(j => r.jc[j] || 0), r.names].join("\t")));
+      rows.forEach(r => lines.push([unitName(d, r.u.parent === null ? "" : r.u.parent).replace("미배치",""), r.u.name, r.u.type, effStatus(r.u) || "기존", headLabel(d, r.u), r.n, r.v, ...JOBS.map(j => r.jc[j] || 0), r.names].join("\t")));
       copy(lines.join("\n"), "요약표를 복사했습니다. 엑셀에 붙여넣으세요."); break; }
     case "copydiff": { const df = diffNow(); if (!df) return; const t = [S.view ? `[${S.pub.baseName}] → [${S.pub.name}]` : `[${S.scen[S.base].name}] → [${S.scen[S.cur].name}]`, "", "■ 조직 변경", ...df.units.map(x => "- " + x.t), "", "■ 인원 변동", ...df.people.map(x => "- " + x.t)]; copy(t.join("\n"), "변경사항을 복사했습니다."); break; }
     case "do-import": doImport(); break;
