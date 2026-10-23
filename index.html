@@ -845,7 +845,8 @@ function openRank(){
   <p class="muted mini" style="margin:0">엑셀에서 <b>이름 · 직급연차</b> 두 칸을 복사해 붙여 넣으세요. 예: <code>홍길동	책임3년차</code></p>
   <textarea id="m-rank" placeholder="이름	직급연차"></textarea>
   <label class="mini"><input type="checkbox" id="m-rank-all" checked> 모든 안에 적용 (끄면 지금 보고 있는 안에만)</label>
-  <p class="muted mini" style="margin:0">이미 더 높은 직급이 들어 있거나 ▲승진 표시가 있는 사람은 그대로 둡니다. 목록에 없는 사람도 그대로 둡니다.</p>
+  <label class="mini"><input type="checkbox" id="m-rank-next" checked> 이름에 ‘27’이 들어간 안은 1년 뒤 기준으로 넣기 (연차 +1, 승진자는 승진 직급 1년차)</label>
+  <p class="muted mini" style="margin:0">그 밖의 안(26년 현행 등)에는 붙여 넣은 직급·연차를 그대로 넣습니다. 목록에 없는 사람은 그대로 둡니다.</p>
   <div id="m-rank-out"></div>
   <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">닫기</button><button class="btn" data-act="rank-preview">미리보기</button><button class="btn primary" data-act="rank-apply" id="m-rank-go" disabled>적용</button></div></div></div>`;
   setTimeout(() => $("#m-rank").focus(), 0);
@@ -868,6 +869,7 @@ function rankPreview(){
   const list = parseRanks($("#m-rank").value);
   if (!list.length) { $("#m-rank-out").innerHTML = `<p class="mini" style="color:var(--accent)">읽을 수 있는 줄이 없습니다. 이름과 직급 사이를 탭이나 띄어쓰기로 나눠 주세요.</p>`; $("#m-rank-go").disabled = true; return; }
   const ids = $("#m-rank-all").checked ? scenList().map(x => x[0]) : [S.cur];
+  const nextYear = $("#m-rank-next").checked;
   const plan = {ids, changes: {}, rows: []}; const matched = new Set();
   const lookup = {}; list.forEach(x => lookup[x.key] = x);
   ids.forEach(sid => {
@@ -877,20 +879,25 @@ function rankPreview(){
       const x = lookup[nkey(p.name)]; if (!x) return;
       matched.add(x.key);
       const cur = (p.rank || "").trim();
-      let act;
-      if ((p.flags || []).includes("promo") && cur) act = "유지(▲승진)";
-      else if (cur && rankLv(cur) > rankLv(x.rank) && rankLv(x.rank) >= 0) act = "유지(승진 직급)";
-      else if (cur === x.rank && String(p.rankYears || "") === x.years) act = "같음";
-      else { act = "변경"; plan.changes[sid].push({pid: p.id, rank: x.rank, years: x.years}); }
-      plan.rows.push({sc: S.scen[sid].name, name: p.name, cur: cur || "-", nw: x.rank + (x.years ? " " + x.years + "년차" : ""), act});
+      const next = nextYear && /27/.test(S.scen[sid].name);
+      const curY = String(p.rankYears || "");
+      let act, rank = x.rank, years = x.years;
+      const promoted = ((p.flags || []).includes("promo") && cur && cur !== x.rank) || (cur && rankLv(cur) > rankLv(x.rank) && rankLv(x.rank) >= 0);
+      if (next) {
+        if (promoted) { rank = cur; years = "1"; act = "승진 직급 1년차"; }
+        else { years = x.years ? String(+x.years + 1) : ""; act = "연차 +1"; }
+      } else act = "현행";
+      if (cur === rank && curY === years) act = "같음";
+      else plan.changes[sid].push({pid: p.id, rank, years});
+      plan.rows.push({sc: S.scen[sid].name, name: p.name, cur: (cur || "-") + (curY ? " " + curY + "년차" : ""), nw: rank + (years ? " " + years + "년차" : ""), act});
     });
   });
   rankPlan = plan;
-  const nChg = plan.rows.filter(r => r.act === "변경").length;
-  const keep = plan.rows.filter(r => r.act.startsWith("유지"));
+  const nChg = plan.rows.filter(r => r.act !== "같음").length;
+  const keep = plan.rows.filter(r => r.act === "승진 직급 1년차");
   const miss = list.filter(x => !matched.has(x.key)).map(x => x.name);
-  $("#m-rank-out").innerHTML = `<p class="mini"><b>변경 ${nChg}건</b> · 유지 ${keep.length}건 · 조직도에 없는 이름 ${miss.length}명</p>
-   ${keep.length ? `<p class="mini muted" style="margin:0 0 4px">그대로 둔 사람: ${keep.map(r => esc(r.name) + "(" + esc(r.cur) + ", " + esc(r.sc) + ")").join(", ")}</p>` : ""}
+  $("#m-rank-out").innerHTML = `<p class="mini"><b>변경 ${nChg}건</b> · 승진자 ${keep.length}건 · 조직도에 없는 이름 ${miss.length}명</p>
+   ${keep.length ? `<p class="mini muted" style="margin:0 0 4px">승진 직급을 유지한 사람: ${keep.map(r => esc(r.name) + "(" + esc(r.nw) + ", " + esc(r.sc) + ")").join(", ")}</p>` : ""}
    ${miss.length ? `<p class="mini muted" style="margin:0 0 4px">조직도에 없어 건너뛴 이름: ${miss.map(esc).join(", ")}</p>` : ""}
    <div class="tblwrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>안</th><th>이름</th><th>현재</th><th>넣을 직급</th><th>처리</th></tr></thead><tbody>
    ${plan.rows.map(r => `<tr><td>${esc(r.sc)}</td><td>${esc(r.name)}</td><td>${esc(r.cur)}</td><td>${esc(r.nw)}</td><td>${esc(r.act)}</td></tr>`).join("")}</tbody></table></div>`;
