@@ -399,7 +399,7 @@ function monthHtml(d, r){
   const kd = kindOf(d, k), evs = (evsByMonth(d)[k] || []).slice().sort((a, b) => a.date.localeCompare(b.date)), mm = recon(d, r)[k];
   const editActual = k < d.baseMonth ? `<div class="fld"><label for="f-act">인원</label><input id="f-act" type="number" min="0" value="${d.actual[k] ?? ""}"></div>`
     : k === d.baseMonth ? `<div class="fld"><label for="f-base">기준월 인원</label><input id="f-base" type="number" min="0" value="${d.baseCount}"></div>`
-    : `<div class="fld"><label>채용</label><label class="mini" style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" id="f-nohire"${(d.noHire || []).includes(k) ? " checked" : ""}> 채용 없음</label></div><div class="fld"><label for="f-adj">계획</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}" placeholder="예: 2 또는 -1"></div>`;
+    : `<div class="fld"><label>채용</label><label class="mini" style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" id="f-nohire"${(d.noHire || []).includes(k) ? " checked" : ""}> 채용 없음</label></div><div class="fld"><label for="f-adj">계획</label><input id="f-adj" type="number" step="1" value="${d.adjust[k] ?? ""}"></div>`;
   return `<div class="panel"><h3><span>${ymK(k)}</span><button class="btn sm" data-act="desel">닫기</button></h3>
     <p class="mini" style="margin:0 0 8px">월말 <b>${r.cnt[k] ?? "–"}명</b>${kd === "act" ? "" : " (예상)"} · 6개월 평균 ${fmtN(r.avg[k])}명 · 증가율 <b style="${r.rate[k] != null && r.rate[k] < d.target - 1e-12 && k > d.specialUntil ? "color:var(--accent)" : ""}">${pct(r.rate[k])}</b></p>
     ${k > d.baseMonth && r.cnt[HC.addM(k, -1)] != null ? (() => { const ev = evs, i = ev.filter(e => e.type === "in").length, o = ev.filter(e => e.type === "out").length, a = +d.adjust[k] || 0; return `<p class="mini" style="margin:-4px 0 8px">계산: 전월 ${r.cnt[HC.addM(k, -1)]}명${i ? ` <span style="color:var(--ok)">+${i}(입사)</span>` : ""}${o ? ` <span style="color:var(--accent)">−${o}(퇴사)</span>` : ""}${a ? ` <span style="color:var(--j-sales)">${a > 0 ? "+" : "−"}${Math.abs(a)}(계획)</span>` : ""} = <b>${r.cnt[k]}명</b></p>`; })() : ""}
@@ -407,11 +407,6 @@ function monthHtml(d, r){
     ${editActual}
     <div class="mini" style="margin-top:4px"><b>이 달 인원 변동</b> ${evs.length ? "" : `<span class="muted">없음</span>`}</div>
     ${evs.map(e => evRow(d, e)).join("")}
-    ${k > d.baseMonth && !S.readOnly ? (S.quick && S.quick.m === k ? `<div style="margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px"><div class="mini" style="margin-bottom:6px"><b>${S.quick.type === "in" ? "입사" : "퇴사"} 예정 추가</b></div>
-      <div class="row" style="flex-wrap:wrap;gap:6px"><input id="q-name" placeholder="이름" style="flex:1 1 70px;min-width:0"><input id="q-date" type="date" value="${S.quick.type === "in" ? k + "-01" : k + "-15"}" min="${k}-01" style="flex:1 1 120px;min-width:0"><input id="q-unit" list="ev-groups" placeholder="소속" style="flex:1 1 90px;min-width:0">
-      <span style="display:flex;gap:6px;margin-left:auto"><button class="btn sm" data-act="quick-cancel">취소</button><button class="btn sm primary" data-act="quick-save">추가</button></span></div></div>`
-      : `<div class="row" style="margin-top:8px"><button class="btn sm" data-act="quick-in" data-m="${k}">이 달 입사 예정 추가</button><button class="btn sm" data-act="quick-out" data-m="${k}">이 달 퇴사 예정 추가</button></div>`) : ""}
-    <div class="fld" style="margin-top:10px"><label for="f-note">메모</label><input id="f-note" value="${esc(d.notes[k] || "")}" placeholder="이 달 메모"></div>
   </div>`;
 }
 function evRow(d, e){
