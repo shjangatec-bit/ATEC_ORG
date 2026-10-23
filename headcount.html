@@ -439,15 +439,27 @@ async function loadOrg(){
 function rosterHtml(d, r){
   if (!ORG) return "";
   if (ORG.err) return `<div class="panel"><details><summary>이번 달 명단</summary><p class="mini muted">조직도 자료를 불러오지 못했습니다.</p></details></div>`;
-  const ex = d.rosterExtra || [], total = ORG.people.length + ex.length, base = r.cnt[d.baseMonth], diff = total - base;
-  const groups = {}; ORG.people.forEach(p => (groups[p.group] = groups[p.group] || []).push(p));
+  const ex = d.rosterExtra || [], bEnd = HC.lastDay(d.baseMonth), key = n => String(n || "").replace(/\(.*?\)/g, "").replace(/\s/g, "");
+  const outBy = {}, inBy = {};
+  d.events.forEach(e => { if (!e.date || !e.name) return; const k = key(e.name);
+    if (e.type === "out" && e.date < bEnd && (!outBy[k] || e.date > outBy[k].date)) outBy[k] = e;
+    if (e.type === "in" && e.date <= bEnd && (!inBy[k] || e.date > inBy[k].date)) inBy[k] = e; });
+  const gone = e => outBy[key(e.name)] && !(inBy[key(e.name)] && inBy[key(e.name)].date > outBy[key(e.name)].date);
+  const all = ORG.people.concat(ex.map(p => ({name: p.name, rank: "", unit: p.unit || "", group: "조직도 밖 인원", extra: true})));
+  const seen = new Set(), list = [], left = [];
+  all.forEach(p => { const k = key(p.name); if (seen.has(k)) return; seen.add(k); if (gone(p)) left.push({p, e: outBy[k]}); else list.push(p); });
+  const joined = Object.entries(inBy).filter(([k, e]) => !seen.has(k) && !(outBy[k] && outBy[k].date >= e.date)).map(([, e]) => ({name: e.name, rank: "", unit: "입사 기록", group: "입사 기록으로 추가", joined: e}));
+  joined.forEach(p => list.push(p));
+  const total = list.length, base = r.cnt[d.baseMonth], diff = total - base;
+  const groups = {}; list.filter(p => !p.extra).forEach(p => (groups[p.group] = groups[p.group] || []).push(p));
   const chip = p => `<span class="rc" title="${esc([p.rank, p.unit].filter(Boolean).join(" · "))}">${esc(p.name)}</span>`;
   return `<div class="panel"><details id="d-roster"${S.open["d-roster"] ? " open" : ""}><summary>이번 달 명단 <span class="mini" style="color:${diff ? "var(--accent)" : "var(--muted)"}">(${ym(d.baseMonth)} · ${total}명${diff ? " · 기준월 인원 " + base + "명과 " + (diff > 0 ? "+" : "") + diff + "명 차이" : " · 기준월 인원과 일치"})</span></summary>
     <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
     ${Object.entries(groups).map(([g, ps]) => `<div><div class="mini"><b>${esc(g)}</b> <span class="muted">${ps.length}명</span></div><div class="rcs">${ps.map(chip).join("")}</div></div>`).join("")}
-    <div><div class="mini"><b>조직도 밖 인원</b> <span class="muted">${ex.length}명 · 조직도에는 없지만 건강보험 가입자</span></div>
-      <div class="rcs">${ex.map((p, i) => `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${p.unit ? ` <span class="muted">${esc(p.unit)}</span>` : ""}${S.readOnly ? "" : ` <button class="x" data-act="rx-del" data-i="${i}" aria-label="빼기" title="빼기">×</button>`}</span>`).join("") || `<span class="muted mini">없음</span>`}</div>
+    <div><div class="mini"><b>조직도 밖 인원</b> <span class="muted">${ex.filter(p => !gone(p)).length}명</span></div>
+      <div class="rcs">${ex.map((p, i) => gone(p) ? "" : `<span class="rc" title="${esc(p.unit || "")}">${esc(p.name)}${p.unit ? ` <span class="muted">${esc(p.unit)}</span>` : ""}${S.readOnly ? "" : ` <button class="x" data-act="rx-del" data-i="${i}" aria-label="빼기" title="빼기">×</button>`}</span>`).join("") || `<span class="muted mini">없음</span>`}</div>
       ${S.readOnly ? "" : `<div class="row" style="margin-top:6px"><input id="f-rxname" placeholder="이름" style="flex:1 1 70px"><input id="f-rxunit" placeholder="소속 (선택)" style="flex:1 1 90px"><button class="btn sm" data-act="rx-add">추가</button></div>`}</div>
+    ${left.length ? `<div><div class="mini"><b>퇴사 기록으로 제외</b> <span class="muted">${left.length}명</span></div><div class="rcs">${left.map(x => `<span class="rc" style="text-decoration:line-through;color:var(--muted)" title="${esc(x.p.unit)}">${esc(x.p.name)} <span class="muted">${esc(dstr(x.e))}</span></span>`).join("")}</div></div>` : ""}
     <p class="muted mini" style="margin:0">조직도 ‘${esc(ORG.name)}’ 안 기준 (채용예정·미배치 제외)</p>
     </div></details></div>`;
 }
