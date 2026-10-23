@@ -637,9 +637,23 @@ function startEdit(el, init, commit, allowEmpty){
   inp.addEventListener("input", () => { inp.size = Math.max(4, inp.value.length + 2); });
   ["click", "dblclick", "mousedown"].forEach(t => inp.addEventListener(t, ev => ev.stopPropagation()));
 }
+function inferType(name, cur){
+  if (cur === "대표") return cur;
+  const n = String(name || "").trim();
+  if (/사업부$/.test(n)) return "사업부";
+  if (/본부$/.test(n)) return "본부";
+  if (/연구소$/.test(n)) return "연구소";
+  if (/연구실$/.test(n)) return "연구실";
+  if (/공장$/.test(n)) return "공장";
+  if (/(part|파트)$/i.test(n)) return "파트";
+  if (/팀$/.test(n)) return "팀";
+  if (/실$/.test(n)) return "실";
+  return cur;
+}
+function renameUnit(d, id, name){ const x = d.units.find(y => y.id === id); x.name = name; x.type = inferType(name, x.type); return x; }
 function editUnitName(el){
   const d = D(), u = d.units.find(x => x.id === el.closest(".unit").dataset.uid);
-  startEdit(el, u.name, v => mutate(d => { d.units.find(x => x.id === u.id).name = v; }));
+  startEdit(el, u.name, v => mutate(d => { renameUnit(d, u.id, v); }));
 }
 function editHead(el){
   const d = D(), u = d.units.find(x => x.id === el.closest(".unit").dataset.uid);
@@ -725,7 +739,7 @@ function handleAct(act, el){
     case "ord": { const dir = +el.dataset.d; mutate(d => { const sib = kids(d, sel.parent); const i = sib.findIndex(x => x.id === sel.id), j = i + dir; if (j < 0 || j >= sib.length) return; [sib[i], sib[j]] = [sib[j], sib[i]]; sib.forEach((x, k) => x.order = k); }); break; }
     case "padd": { const inp = $("#f-pnew"); const name = inp && inp.value.trim(); if (!name) { inp && inp.focus(); return; } const job = $("#f-pjob").value; mutate(d => { d.people.push({id: uid("p-"), name, rank:"", job, flags:[], note:"", vacant:false, unit: sel.id}); }); setTimeout(() => { const i = $("#f-pnew"); i && i.focus(); }, 0); break; }
     case "vadd": mutate(d => { d.people.push({id: uid("v-"), name:"채용예정", rank:"", job: $("#f-pjob") ? $("#f-pjob").value : "사무", flags:[], note:"", vacant:true, unit: sel.id}); }); break;
-    case "cadd": { const name = ($("#f-cnew").value || "").trim() || "새 팀"; const id = uid("u-"); mutate(d => { d.units.push({id, name, type: /part|파트/i.test(name) ? "파트" : /실$/.test(name) ? "실" : /사업부$/.test(name) ? "사업부" : "팀", status:"신설", parent: sel.id, order: kids(d, sel.id).length, headId:null, headText:"", note:""}); }); S.sel = {k:"u", id}; render({}); break; }
+    case "cadd": { const name = ($("#f-cnew").value || "").trim() || "새 팀"; const id = uid("u-"); mutate(d => { d.units.push({id, name, type: inferType(name, "팀"), status:"신설", parent: sel.id, order: kids(d, sel.id).length, headId:null, headText:"", note:""}); }); S.sel = {k:"u", id}; render({}); break; }
     case "merge": { const t = $("#f-merge").value; if (!t) { toast("통합할 조직을 먼저 고르세요."); return; } const tn = unitName(d, t), sn = sel.name;
       mutate(d => { d.people.forEach(p => { if (p.unit === sel.id) p.unit = t; }); kids(d, sel.id).forEach(k => { k.parent = t; k.order = 999 + k.order; }); kids(d, t).forEach((x,i) => x.order = i); d.units = d.units.filter(x => x.id !== sel.id); kids(d, sel.parent).forEach((x,i) => x.order = i); return sn + "을(를) " + tn + "(으)로 통합했습니다."; });
       S.sel = {k:"u", id:t}; render({}); break; }
@@ -761,7 +775,7 @@ document.addEventListener("input", e => {
   const u = S.sel.k === "u" ? d.units.find(x => x.id === S.sel.id) : null;
   const p = S.sel.k === "p" ? d.people.find(x => x.id === S.sel.id) : null;
   const live = {keepPanel:true};
-  if (u && id === "f-uname") mutate(d => { d.units.find(x => x.id === u.id).name = t.value; }, "uname" + u.id, live);
+  if (u && id === "f-uname") { mutate(d => { const x = renameUnit(d, u.id, t.value); const sel = $("#f-utype"); if (sel && [...sel.options].some(o => o.value === x.type)) sel.value = x.type; }, "uname" + u.id, live); }
   else if (u && id === "f-uheadt") mutate(d => { d.units.find(x => x.id === u.id).headText = t.value; }, "uht" + u.id, live);
   else if (u && id === "f-unote") mutate(d => { d.units.find(x => x.id === u.id).note = t.value; }, "unote" + u.id, live);
   else if (p && id === "f-pname") mutate(d => { d.people.find(x => x.id === p.id).name = t.value; }, "pname" + p.id, live);
