@@ -196,14 +196,14 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
     <div class="grp">
       <select id="scen" aria-label="조직안 선택"></select>
       <input id="sname" aria-label="조직안 이름" placeholder="조직안 이름">
-      <button class="btn" id="b-dup" title="지금 보고 있는 안을 그대로 복사해 새 안을 만듭니다">복제</button>
-      <button class="btn" id="b-new">빈 안</button>
-      <button class="btn" id="b-del">안 삭제</button>
+      <button class="btn" id="b-dup" title="지금 보고 있는 안을 복사해 새 안으로 추가합니다">추가</button>
+      <button class="btn" id="b-new" title="대표이사만 있는 빈 조직도를 새로 만듭니다">새 조직도</button>
+      <button class="btn" id="b-del" title="지금 보고 있는 안을 삭제합니다">삭제</button>
     </div>
     <span class="sep"></span>
     <div class="grp">
-      <button class="btn" id="b-undo" title="되돌리기 (Ctrl+Z)">↶ 되돌리기</button>
-      <button class="btn" id="b-redo" title="다시 실행 (Ctrl+Y)">↷</button>
+      <button class="btn" id="b-undo" title="되돌리기 (Ctrl+Z)" aria-label="되돌리기">↶</button>
+      <button class="btn" id="b-redo" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행">↷</button>
       <button class="btn on" id="b-people">인원 표시</button>
       <button class="btn" id="b-rankshow">직급 표시</button>
       <button class="btn" id="b-present" title="도구와 오른쪽 칸을 숨기고 조직도만 크게 봅니다 (Esc로 끝내기)">회의 보기</button>
@@ -619,7 +619,7 @@ function diffPane(d, diff){
   const opts = scenList().filter(([id]) => id !== S.cur).map(([id, s]) => `<option value="${id}"${id === S.base ? " selected" : ""}>${esc(s.name)}</option>`).join("");
   let h = `<h3>변경사항</h3><div class="fld"><label for="f-base">비교 기준</label><select id="f-base">${opts || `<option>비교할 다른 안이 없습니다</option>`}</select></div>`;
   if (S.view) { if (!diff) return `<h3>변경사항</h3><p class="muted">이 공개본에는 변경사항이 포함되어 있지 않습니다.</p>`; h = `<h3>변경사항</h3><p class="muted mini">기준: ${esc(S.pub.baseName)}</p>`; }
-  if (!diff) return h + `<p class="muted">‘복제’로 안을 하나 더 만들면 두 안의 차이가 여기에 정리됩니다.</p>`;
+  if (!diff) return h + `<p class="muted">‘추가’로 안을 하나 더 만들면 두 안의 차이가 여기에 정리됩니다.</p>`;
   h += `<h4>조직별 인원</h4><div class="tblwrap"><table><thead><tr><th>조직</th><th class="n">기준</th><th class="n">현재</th><th class="n">증감</th></tr></thead><tbody>` +
     diff.rows.map(r => { const dl = (r.c ?? 0) - (r.b ?? 0); return `<tr${r.total ? ' class="l1"' : ""}><td>${esc(r.name)}${r.b == null ? " <span class='mini' style='color:var(--accent)'>신설</span>" : r.c == null ? " <span class='mini muted'>폐지</span>" : ""}</td><td class="n">${r.b ?? "–"}</td><td class="n">${r.c ?? "–"}</td><td class="n ${dl>0?"delta-up":dl<0?"delta-dn":""}">${dl ? (dl > 0 ? "+" : "") + dl : "–"}</td></tr>`; }).join("") + `</tbody></table></div>`;
   h += `<h4>조직 변경 ${diff.units.length}건</h4><ul class="dlist">${diff.units.map(x => `<li class="k-${x.k}">${esc(x.t)}</li>`).join("") || `<li>없음</li>`}</ul>`;
@@ -862,9 +862,9 @@ document.addEventListener("change", e => {
 
 /* header controls */
 $("#sname").addEventListener("input", e => { const s = S.scen[S.cur]; if (!s || S.readOnly) return; s.name = e.target.value; markDirty(S.cur); const o = $("#scen").selectedOptions[0]; if (o) o.textContent = s.name || "이름 없는 안"; });
-$("#b-dup").onclick = () => { const s = S.scen[S.cur]; if (s) { addScenario(s.name + " 복사본", clone(s.data), s.note); toast("복제했습니다. 이제 복사본에서 작업합니다."); } };
+$("#b-dup").onclick = () => { const s = S.scen[S.cur]; if (s) { addScenario(s.name + " 복사본", clone(s.data), s.note); toast("추가했습니다. 이제 복사본에서 작업합니다."); } };
 $("#b-new").onclick = () => addScenario("새 조직안", blankData());
-$("#b-del").onclick = e => { if (!S.scen[S.cur]) return; if (!arm(e.target, "sdel", "한 번 더 누르면 안 삭제")) return; const n = S.scen[S.cur].name; deleteScenario(S.cur); toast("‘" + n + "’ 안을 삭제했습니다."); };
+$("#b-del").onclick = e => { if (!S.scen[S.cur]) return; if (!arm(e.target, "sdel", "한 번 더 누르면 삭제")) return; const n = S.scen[S.cur].name; deleteScenario(S.cur); toast("‘" + n + "’ 안을 삭제했습니다."); };
 $("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
 $("#b-rankshow").onclick = () => { S.showRank = !S.showRank; savePref(); render({keepPanel:true}); };
 function setPresent(on){ S.present = on; if (on) { S.sel = null; try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {} } else { try { document.fullscreenElement && document.exitFullscreen(); } catch (e) {} } render({}); }
@@ -873,7 +873,7 @@ $("#b-endpresent").onclick = () => setPresent(false);
 document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && S.present) setPresent(false); });
 $("#b-people").onclick = () => { S.showPeople = !S.showPeople; savePref(); render({keepPanel:true}); };
 $("#b-moves").onclick = () => { S.showMoves = !S.showMoves; savePref(); if (S.showMoves && !diffNow()) toast("비교할 기준안이 필요합니다. ‘변경사항’ 탭에서 기준안을 고르세요."); render({keepPanel:true}); };
-$("#b-cmp").onclick = () => { S.compare = !S.compare; if (S.compare && !diffNow()) toast("비교할 다른 안이 필요합니다. ‘복제’로 안을 하나 더 만드세요."); render({keepPanel:true}); };
+$("#b-cmp").onclick = () => { S.compare = !S.compare; if (S.compare && !diffNow()) toast("비교할 다른 안이 필요합니다. ‘추가’로 안을 하나 더 만드세요."); render({keepPanel:true}); };
 $("#b-zi").onclick = () => { S.zoom = Math.min(1.3, +(S.zoom + 0.1).toFixed(2)); savePref(); render({keepPanel:true}); };
 $("#b-zo").onclick = () => { S.zoom = Math.max(0.5, +(S.zoom - 0.1).toFixed(2)); savePref(); render({keepPanel:true}); };
 $("#q").addEventListener("input", e => { S.q = e.target.value; render({keepPanel:true}); const h = document.querySelector("#scroll .chip.hit"); if (h && S.q.trim()) h.scrollIntoView({block:"nearest", inline:"center"}); });
