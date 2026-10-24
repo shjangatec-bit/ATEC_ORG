@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><script>try{var t=localStorage.getItem("atec.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
 <title>고용증가율 관리</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -141,7 +141,7 @@ details summary{cursor:pointer;font-weight:600;font-size:13px}
     <label class="mini muted" for="cmp">비교</label><select id="cmp" aria-label="비교할 안"></select>
     <button class="btn" id="b-exp">내보내기</button>
     <button class="btn" id="b-imp">가져오기</button>
-    <button class="btn" id="b-logout" hidden>로그아웃</button>
+    <button class="btn" id="b-theme" type="button"></button><button class="btn" id="b-logout" hidden>로그아웃</button>
   </div>
   <span class="status" id="status">불러오는 중…</span>
 </header>
@@ -656,6 +656,10 @@ $("#login-form").addEventListener("submit", async e => {
   if (error) { $("#l-err").textContent = "아이디 또는 비밀번호가 맞지 않습니다."; return; }
   $("#login").hidden = true; afterLogin(data.user);
 });
+function isDark(){ const t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
+function themeBtn(){ const d = isDark(), b = $("#b-theme"); b.textContent = d ? "☀ 기본 모드" : "☾ 다크 모드"; b.title = d ? "밝은 화면으로 바꾸기" : "어두운 화면으로 바꾸기"; }
+$("#b-theme").onclick = () => { const t = isDark() ? "light" : "dark"; document.documentElement.setAttribute("data-theme", t); try { localStorage.setItem("atec.theme", t); } catch (e) {} themeBtn(); if (typeof render === "function") try { render({}); } catch (e) {} };
+themeBtn();
 $("#b-logout").onclick = async () => { try { await sb.auth.signOut(); } catch (e) {} location.reload(); };
 const rowTo = r => ({name: r.name || "", order: r.sort_order ?? 0, updatedAt: Date.parse(r.updated_at) || 0, data: norm(r.data)});
 async function afterLogin(user){

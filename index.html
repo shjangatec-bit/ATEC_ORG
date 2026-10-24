@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><script>try{var t=localStorage.getItem("atec.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
 <title>조직 운영계획</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -220,7 +220,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <button class="btn" id="b-imp">가져오기</button>
       <button class="btn" id="b-hr">인사정보 넣기</button>
       <button class="btn primary" id="b-pub" hidden>경영진 공개</button>
-      <button class="btn" id="b-logout" hidden>로그아웃</button>
+      <button class="btn" id="b-theme" type="button"></button><button class="btn" id="b-logout" hidden>로그아웃</button>
     </div>
     <span class="status" id="status" aria-live="polite">불러오는 중…</span>
   </header>
@@ -1188,6 +1188,10 @@ $("#login-form").addEventListener("submit", async e => {
   if (error) { $("#l-err").textContent = "아이디 또는 비밀번호가 맞지 않습니다."; return; }
   $("#login").hidden = true; afterLogin(data.user);
 });
+function isDark(){ const t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
+function themeBtn(){ const d = isDark(), b = $("#b-theme"); b.textContent = d ? "☀ 기본 모드" : "☾ 다크 모드"; b.title = d ? "밝은 화면으로 바꾸기" : "어두운 화면으로 바꾸기"; }
+$("#b-theme").onclick = () => { const t = isDark() ? "light" : "dark"; document.documentElement.setAttribute("data-theme", t); try { localStorage.setItem("atec.theme", t); } catch (e) {} themeBtn(); if (typeof render === "function") try { render({}); } catch (e) {} };
+themeBtn();
 $("#b-logout").onclick = async () => { try { await sb.auth.signOut(); } catch (e) {} location.reload(); };
 async function afterLogin(user){
   me = user; $("#b-logout").hidden = false;
