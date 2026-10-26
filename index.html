@@ -39,6 +39,7 @@ header{background:var(--surface);border-bottom:1px solid var(--line2);padding-bl
 .brand{font-weight:700;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
 .brand::before{content:"";width:10px;height:10px;background:var(--accent);border-radius:2px}
 .brand .bsub{font-weight:500;color:var(--muted)}
+.ai-out{white-space:pre-wrap;line-height:1.7;font-size:14px;background:var(--surface2);border:1px solid var(--line2);border-radius:8px;padding:14px 16px;max-height:55vh;overflow:auto}
 .grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .sep{width:1px;height:22px;background:var(--line2)}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:5px 10px;cursor:pointer;white-space:nowrap}
@@ -667,7 +668,7 @@ function diffPane(d, diff){
     diff.rows.map(r => { const dl = (r.c ?? 0) - (r.b ?? 0); return `<tr${r.total ? ' class="l1"' : ""}><td>${esc(r.name)}${r.b == null ? " <span class='mini' style='color:var(--accent)'>신설</span>" : r.c == null ? " <span class='mini muted'>폐지</span>" : ""}</td><td class="n">${r.b ?? "–"}</td><td class="n">${r.c ?? "–"}</td><td class="n ${dl>0?"delta-up":dl<0?"delta-dn":""}">${dl ? (dl > 0 ? "+" : "") + dl : "–"}</td></tr>`; }).join("") + `</tbody></table></div>`;
   h += `<h4>조직 변경 ${diff.units.length}건</h4><ul class="dlist">${diff.units.map(x => `<li class="k-${x.k}">${esc(x.t)}</li>`).join("") || `<li>없음</li>`}</ul>`;
   h += `<h4>인원 변동 ${diff.people.length}건</h4><ul class="dlist">${diff.people.map(x => `<li class="k-${x.k}">${esc(x.t)}</li>`).join("") || `<li>없음</li>`}</ul>`;
-  h += `<div class="row" style="margin-top:12px"><button class="btn sm" data-act="copydiff">변경사항 텍스트 복사</button></div>`;
+  h += `<div class="row" style="margin-top:12px"><button class="btn sm" data-act="copydiff">변경사항 텍스트 복사</button>${S.view ? "" : `<button class="btn sm primary" data-act="ai-sum" title="변경사항을 경영진 보고 문구로 AI가 요약합니다">AI 요약</button>`}</div>`;
   return h;
 }
 function tableRows(d){
@@ -857,6 +858,9 @@ function handleAct(act, el){
       rows.forEach(r => lines.push([unitName(d, r.u.parent === null ? "" : r.u.parent).replace("미배치",""), r.u.name, r.u.type, effStatus(r.u) || "기존", headLabel(d, r.u), r.n, r.v, ...JOBS.map(j => r.jc[j] || 0), r.names].join("\t")));
       copy(lines.join("\n"), "요약표를 복사했습니다. 엑셀에 붙여넣으세요."); break; }
     case "copydiff": { const df = diffNow(); if (!df) return; const t = [S.view ? `[${S.pub.baseName}] → [${S.pub.name}]` : `[${S.scen[S.base].name}] → [${S.scen[S.cur].name}]`, "", "■ 조직 변경", ...df.units.map(x => "- " + x.t), "", "■ 인원 변동", ...df.people.map(x => "- " + x.t)]; copy(t.join("\n"), "변경사항을 복사했습니다."); break; }
+    case "ai-sum": aiSummary(); break;
+    case "ai-copy": { const t = $("#ai-out") && $("#ai-out").innerText; if (t) copy(t, "요약을 복사했습니다."); break; }
+    case "ai-redo": aiSummary(true); break;
     case "do-import": doImport(); break;
     case "hr-preview": hrPreview(); break;
     case "hr-apply": hrApply(); break;
@@ -866,6 +870,31 @@ function handleAct(act, el){
     case "close-modal": $("#modal-root").innerHTML = ""; break;
     case "exp-file": exportFile(); break;
     case "exp-copy": copy(exportJson(), "JSON을 복사했습니다. 메모장 등에 붙여 보관하세요."); break;
+  }
+}
+/* ---------- AI 요약 (Supabase Edge Function 'change-summary' → Claude) ---------- */
+const aiCache = {};
+function diffText(df){
+  const head = `기준안: ${S.scen[S.base].name}\n비교안: ${S.scen[S.cur].name}`;
+  return [head, "", "■ 조직별 인원 (기준 → 비교)", ...df.rows.map(r => `- ${r.name}: ${r.b ?? "없음"} → ${r.c ?? "없음"}`), "", "■ 조직 변경", ...(df.units.length ? df.units.map(x => "- " + x.t) : ["- 없음"]), "", "■ 인원 변동", ...(df.people.length ? df.people.map(x => "- " + x.t) : ["- 없음"])].join("\n");
+}
+async function aiSummary(force){
+  const df = diffNow(); if (!df || S.view || !sb) { toast("비교할 기준안이 필요합니다."); return; }
+  const text = diffText(df);
+  const box = (body, foot) => { $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(720px,100%)"><b>AI 요약 <span class="muted mini">‘${esc(S.scen[S.base].name)}’ 대비 ‘${esc(S.scen[S.cur].name)}’</span></b>${body}<div class="row" style="justify-content:flex-end">${foot}<button class="btn" data-act="close-modal">닫기</button></div></div></div>`; };
+  if (!force && aiCache[text]) { box(`<div id="ai-out" class="ai-out">${esc(aiCache[text])}</div><p class="muted mini" style="margin:0">AI가 작성한 초안입니다. 보고 전에 내용을 확인해 주세요.</p>`, `<button class="btn" data-act="ai-redo">다시 요약</button><button class="btn primary" data-act="ai-copy">복사</button>`); return; }
+  box(`<div class="ai-out muted">AI가 변경사항을 요약하는 중입니다…</div>`, "");
+  try {
+    const {data, error} = await sb.functions.invoke("change-summary", {body: {text}});
+    if (error || !data || data.error) {
+      let msg = (data && data.error) || "";
+      if (!msg && error) { try { const j = await error.context.json(); msg = j.error || ""; } catch (e) {} }
+      throw new Error(msg || "AI 요약 기능이 아직 서버에 설정되지 않았습니다.");
+    }
+    aiCache[text] = data.summary;
+    box(`<div id="ai-out" class="ai-out">${esc(data.summary)}</div><p class="muted mini" style="margin:0">AI가 작성한 초안입니다. 보고 전에 내용을 확인해 주세요.</p>`, `<button class="btn" data-act="ai-redo">다시 요약</button><button class="btn primary" data-act="ai-copy">복사</button>`);
+  } catch (e) {
+    box(`<div class="ai-out" style="color:var(--accent)">${esc(e.message || "요약하지 못했습니다.")}</div>`, `<button class="btn" data-act="ai-redo">다시 시도</button>`);
   }
 }
 function copy(text, msg){
