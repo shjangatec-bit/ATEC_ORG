@@ -886,6 +886,7 @@ async function aiSummary(force){
   box(`<div class="ai-out muted">AI가 변경사항을 요약하는 중입니다…</div>`, "");
   try {
     const {data, error} = await sb.functions.invoke("change-summary", {body: {text}});
+    if (!error && data && !data.error && !String(data.summary || "").trim()) throw new Error("AI가 요약을 만들지 못했습니다. 다시 시도해 주세요.");
     if (error || !data || data.error) {
       let msg = (data && data.error) || "";
       if (!msg && error) { try { const j = await error.context.json(); msg = j.error || ""; } catch (e) {} }
