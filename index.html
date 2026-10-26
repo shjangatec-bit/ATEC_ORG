@@ -1191,7 +1191,7 @@ $("#login-form").addEventListener("submit", async e => {
   $("#login").hidden = true; afterLogin(data.user);
 });
 function isDark(){ const t = document.documentElement.getAttribute("data-theme"); return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; }
-function themeBtn(){ const d = isDark(), b = $("#b-theme"); b.textContent = d ? "☀ 기본 모드" : "☾ 다크 모드"; b.title = d ? "밝은 화면으로 바꾸기" : "어두운 화면으로 바꾸기"; }
+function themeBtn(){ const d = isDark(), b = $("#b-theme"); b.textContent = d ? "☀ 라이트 모드" : "☾ 다크 모드"; b.title = d ? "밝은 화면으로 바꾸기" : "어두운 화면으로 바꾸기"; }
 $("#b-theme").onclick = () => { const t = isDark() ? "light" : "dark"; document.documentElement.setAttribute("data-theme", t); try { localStorage.setItem("atec.theme", t); } catch (e) {} themeBtn(); if (typeof render === "function") try { render({}); } catch (e) {} };
 themeBtn();
 $("#b-logout").onclick = async () => { try { await sb.auth.signOut(); } catch (e) {} location.reload(); };
