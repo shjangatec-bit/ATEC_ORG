@@ -279,7 +279,7 @@ let planCache = {key: null, val: null};
 function minPlan(d){
   const key = stable(d); if (planCache.key === key) return planCache.val;
   const t = clone(d), steps = [], until = d.endMonth;
-  const failOf = x => { const r = HC.calc(x); return r.months.find(k => k > x.baseMonth && k > x.specialUntil && k <= until && r.rate[k] != null && r.rate[k] < x.target - 1e-12) || null; };
+  const skip = new Set(), failOf = x => { const r = HC.calc(x); return r.months.find(k => k > x.baseMonth && k > x.specialUntil && k <= until && !skip.has(k) && r.rate[k] != null && r.rate[k] < x.target - 1e-12) || null; };
   for (let guard = 0; guard < 80; guard++) {
     const F = failOf(t); if (!F) break; let best = null;
     for (let n = 1; n <= 12 && !best; n++) for (let back = 1; back <= 12; back++) {
@@ -287,7 +287,7 @@ function minPlan(d){
       const u = clone(t); u.adjust[Hm] = (+u.adjust[Hm] || 0) + n; const rr = HC.calc(u);
       if (rr.rate[F] >= t.target - 1e-12) { best = {H: Hm, n}; break; }
     }
-    if (!best) { steps.push({H: null, F}); break; }
+    if (!best) { steps.push({H: null, F}); skip.add(F); continue; }
     t.adjust[best.H] = (+t.adjust[best.H] || 0) + best.n; steps.push(best);
   }
   const rr = HC.calc(t), r0 = HC.calc(d), need = {};
@@ -338,7 +338,7 @@ function cardsHtml(d, r){
     <div class="card ${r.rate[nx] != null && r.rate[nx] < d.target - 1e-12 ? "bad" : ""}"><div class="lb">다음 달 ${ym(nx)} 예상</div><div class="v">${pct(r.rate[nx])}</div><div class="s">월말 ${r.cnt[nx] ?? "–"}명 · 6개월 평균 ${fmtN(r.avg[nx])}명</div></div>
     ${(() => { const hz = HC.addM(b, HORIZON), fn = fails.filter(k => k <= hz), ff = fails.filter(k => k > hz); const mk = fn.reduce((a, k) => a == null || r.rate[k] < r.rate[a] ? k : a, null);
       return `<div class="card ${fn.length ? "bad" : "good"}"><div class="lb">${pct(d.target, 0)} 미달 예상 (앞으로 ${HORIZON}개월)</div><div class="v">${fn.length ? fn.length + "개월" : "없음"}</div><div class="s">${fn.length ? "처음 " + ym(fn[0]) + " · 가장 낮은 달 " + ym(mk) + " " + pct(r.rate[mk]) : "~" + ym(hz) + " 매월 충족"}${ff.length ? ` · <span title="${esc(ff.map(ym).join(", "))}">그 뒤 ${ff.length}개월 미달</span>` : ""}</div></div>`; })()}
-    <div class="card ${s.near.length ? "bad" : "good"}"><div class="lb">4% 유지에 필요한 순증 (앞으로 ${HORIZON}개월)</div>${s.near.length ? `<div class="v">+${s.nearSum}명</div><div class="s">가장 먼저 ${ym(s.near[0].H)} 말까지 +${s.near[0].n}명${s.far.length ? " · 그 뒤 " + d.endMonth.slice(0, 4) + "년까지 +" + s.farSum + "명" : ""}</div>` : `<div class="v">충분</div><div class="s">${s.far.length ? "그 뒤 " + d.endMonth.slice(0, 4) + "년까지 +" + s.farSum + "명 필요" : "추가 채용 없이 유지"}</div>`}</div>
+    <div class="card ${s.near.length || s.mp.stuck ? "bad" : "good"}"><div class="lb">4% 유지에 필요한 순증 (앞으로 ${HORIZON}개월)</div>${s.near.length ? `<div class="v">+${s.nearSum}명</div><div class="s">가장 먼저 ${ym(s.near[0].H)} 말까지 +${s.near[0].n}명${s.far.length ? " · 그 뒤 " + d.endMonth.slice(0, 4) + "년까지 +" + s.farSum + "명" : ""}${s.mp.stuck ? " · " + ym(s.mp.stuck.F) + " 맞추기 어려움" : ""}</div>` : s.mp.stuck ? `<div class="v">맞추기 어려움</div><div class="s">${ym(s.mp.stuck.F)}은 그 전에 채용할 수 있는 달이 없습니다</div>` : `<div class="v">충분</div><div class="s">${s.far.length ? "그 뒤 " + d.endMonth.slice(0, 4) + "년까지 +" + s.farSum + "명 필요" : "추가 채용 없이 유지"}</div>`}</div>
   </div>`;
 }
 function chartHtml(d, r, c){
@@ -390,13 +390,13 @@ function tableHtml(d, r, c){
 }
 function monthHtml(d, r){
   const k = S.sel; if (!k) { const s = suggest(d, r); const pl = Object.entries(d.adjust).filter(([m, v]) => m > d.baseMonth && +v); const plSum = pl.reduce((a, [, v]) => a + (+v), 0);
-    return `<div class="panel"><details id="d-plan"${S.open["d-plan"] ? " open" : ""}><summary>유지 방안 <span class="muted mini">(앞으로 ${HORIZON}개월${pl.length ? " · 계획 " + (plSum > 0 ? "+" : "") + plSum + "명" : ""}${s.near.length ? " · 추가 필요 +" + s.nearSum + "명" : " · 4% 유지"})</span></summary><div style="margin-top:10px">
+    return `<div class="panel"><details id="d-plan"${S.open["d-plan"] ? " open" : ""}><summary>유지 방안 <span class="muted mini">(앞으로 ${HORIZON}개월${pl.length ? " · 계획 " + (plSum > 0 ? "+" : "") + plSum + "명" : ""}${s.near.length ? " · 추가 필요 +" + s.nearSum + "명" : (s.mp.stuck ? " · 맞추기 어려움" : " · 4% 유지")})</span></summary><div style="margin-top:10px">
     <div class="row" style="margin:0 0 8px;justify-content:space-between"><span class="mini">현재 계획 <b style="color:var(--j-sales)">${pl.length ? pl.length + "건 · " + (plSum > 0 ? "+" : "") + plSum + "명" : "없음"}</b></span>
       ${S.readOnly ? "" : `<span class="row"><button class="btn sm" data-act="plan-clear"${pl.length ? "" : " disabled"}>계획 모두 빼기</button><button class="btn sm" data-act="plan-redo" title="계획을 모두 빼고, 지금 입퇴사 기준으로 다시 계산한 일정을 넣습니다">다시 계산해 넣기</button></span>`}</div>
     ${s.near.length ? `<table style="font-size:12.5px"><thead><tr><th style="text-align:left">시점</th><th>추가</th><th>필요 월말 인원</th><th>지금 예상</th>${S.readOnly ? "" : "<th></th>"}</tr></thead><tbody>${s.near.map(x => `<tr><td style="text-align:left"><b>${ym(x.H)}</b> 말까지</td><td style="color:var(--accent);font-weight:700">+${x.n}</td><td>${x.need}</td><td class="muted">${x.have}</td>${S.readOnly ? "" : `<td><button class="btn sm" data-act="nohire" data-m="${x.H}" title="이 달은 채용하지 않는 것으로 하고 다른 달로 다시 계산합니다" style="padding:1px 6px">제외</button></td>`}</tr>`).join("")}</tbody></table>
       <div class="row" style="margin-top:8px"><button class="btn sm primary" data-act="apply-plan">이 일정을 계획에 넣어 보기</button></div>` : `<p class="mini" style="margin:0">앞으로 ${HORIZON}개월은 추가 채용 없이 매월 ${pct(d.target, 0)} 이상입니다.</p>`}
     ${(d.noHire || []).filter(m => m > d.baseMonth).length ? `<div class="row mini" style="margin-top:8px"><span class="muted">채용 안 하는 달:</span>${d.noHire.filter(m => m > d.baseMonth).sort().map(m => `<button class="btn sm" data-act="nohire-off" data-m="${m}" title="다시 채용 가능한 달로 되돌립니다">${ym(m)} ✕</button>`).join("")}</div>` : ""}
-    ${s.mp.stuck ? `<p class="mini" style="color:var(--accent);margin:6px 0 0">${ym(s.mp.stuck.F)}은 채용 시점이 너무 가까워 맞추기 어렵습니다.</p>` : ""}</div></details></div>`; }
+    ${s.mp.stuck ? `<p class="mini" style="color:var(--accent);margin:6px 0 0">${ym(s.mp.stuck.F)}은 그 전에 채용할 수 있는 달이 없어 맞추기 어렵습니다.</p>` : ""}</div></details></div>`; }
   const kd = kindOf(d, k), evs = (evsByMonth(d)[k] || []).slice().sort((a, b) => a.date.localeCompare(b.date)), mm = recon(d, r)[k];
   const editActual = k < d.baseMonth ? `<div class="fld"><label for="f-act">인원</label><input id="f-act" type="number" min="0" value="${d.actual[k] ?? ""}"></div>`
     : k === d.baseMonth ? `<div class="fld"><label for="f-base">기준월 인원</label><input id="f-base" type="number" min="0" value="${d.baseCount}"></div>`
