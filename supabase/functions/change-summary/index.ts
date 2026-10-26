@@ -57,14 +57,16 @@ Deno.serve(async (req) => {
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model: Deno.env.get("AI_MODEL") ?? "claude-haiku-5-5",
-        max_tokens: 1200,
+        max_tokens: 4000,
+        thinking: { type: "disabled" },
         system: SYSTEM,
         messages: [{ role: "user", content: text }],
       }),
     });
     const j = await r.json();
     if (!r.ok) return json({ error: "AI 호출에 실패했습니다: " + (j?.error?.message ?? r.status) }, 502);
-    const summary = (j.content ?? []).map((c: { text?: string }) => c.text ?? "").join("").trim();
+    const summary = (j.content ?? []).filter((c: { type?: string }) => c.type === "text").map((c: { text?: string }) => c.text ?? "").join("").trim();
+    if (!summary) return json({ error: "AI가 요약을 만들지 못했습니다 (" + (j.stop_reason ?? "응답 없음") + "). 다시 시도해 주세요." }, 502);
     return json({ summary });
   } catch (e) {
     return json({ error: "요약 중 오류가 발생했습니다: " + String(e) }, 500);
