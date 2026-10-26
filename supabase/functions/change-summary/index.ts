@@ -39,7 +39,8 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST만 허용됩니다." }, 405);
   try {
     const auth = req.headers.get("Authorization") ?? "";
-    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: auth } } });
+    const apikey = req.headers.get("apikey") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const sb = createClient(Deno.env.get("SUPABASE_URL")!, apikey, { global: { headers: { Authorization: auth } } });
     const { data: u } = await sb.auth.getUser(auth.replace(/^Bearer\s+/i, ""));
     if (!u?.user?.email) return json({ error: "로그인이 필요합니다." }, 401);
     const { data: m } = await sb.from("org_members").select("role").eq("email", u.user.email).maybeSingle();
