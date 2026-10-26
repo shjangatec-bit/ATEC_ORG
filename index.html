@@ -390,7 +390,7 @@ function nextOrder(){ return Math.max(-1, ...Object.values(S.scen).map(s => s.or
 function addScenario(name, data, note){
   const id = uid("s");
   S.scen[id] = {name, note: note || "", order: nextOrder(), updatedAt: Date.now(), data: normalize(data)};
-  const nb = nowBaseId(); if (nb && nb !== id) S.base = nb; else if (S.cur && S.cur !== id) S.base = S.cur;
+  const nb = nowBaseId(id); if (nb && nb !== id) S.base = nb; else if (S.cur && S.cur !== id) S.base = S.cur;
   S.cur = id; S.sel = null; markDirty(id); savePref(); render({});
   return id;
 }
@@ -451,7 +451,8 @@ function computeDiff(B, C){
 function diffNow(){ if (S.view) return S.pub && S.pub.diff ? Object.assign({moved:new Set(), tag:{}, from:{}, units:[], people:[], rows:[]}, S.pub.diff) : null; const b = S.scen[S.base], c = S.scen[S.cur]; return b && c && S.base !== S.cur ? computeDiff(b.data, c.data) : null; }
 
 /* ---------- render ---------- */
-function nowBaseId(){ const l = scenList().filter(([id]) => isNowScen(id)); return l.length ? l[0][0] : null; }
+const scPre = id => { const m = /^\s*(\[[^\]]*\])/.exec((S.scen[id] || {}).name || ""); return m ? m[1] : ""; };
+function nowBaseId(forId){ const pre = scPre(forId || S.cur), l = scenList().filter(([id]) => isNowScen(id)), same = l.filter(([id]) => scPre(id) === pre); const r = same.length ? same : l; return r.length ? r[0][0] : null; }
 let AUTO = {};
 function calcAuto(d){
   AUTO = {}; const bid = nowBaseId();
@@ -893,7 +894,7 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("change", e => {
   const t = e.target, id = t.id, d = D();
-  if (id === "scen") { S.cur = t.value; S.sel = null; if (S.base === S.cur) S.base = null; savePref(); render({}); return; }
+  if (id === "scen") { S.cur = t.value; S.sel = null; { const nb = nowBaseId(S.cur), pre = scPre(S.cur); if (nb && nb !== S.cur) S.base = nb; else { const o = scenList().find(([id]) => id !== S.cur && scPre(id) === pre); if (o) S.base = o[0]; } } if (S.base === S.cur) S.base = null; savePref(); render({}); return; }
   if (id === "f-base") { S.base = t.value; savePref(); render({}); return; }
   if (!d || !S.sel) return;
   const u = S.sel.k === "u" ? d.units.find(x => x.id === S.sel.id) : null;
