@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><script>try{var t=localStorage.getItem("atec.theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
-<title>조직 운영계획</title>
+<title>ATEC-SANDBOX · 조직 운영계획</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,6 +38,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 header{background:var(--surface);border-bottom:1px solid var(--line2);padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
 .brand{font-weight:700;font-size:15px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
 .brand::before{content:"";width:10px;height:10px;background:var(--accent);border-radius:2px}
+.brand .bsub{font-weight:500;color:var(--muted)}
 .grp{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .sep{width:1px;height:22px;background:var(--line2)}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:5px 10px;cursor:pointer;white-space:nowrap}
@@ -190,7 +191,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
 
 <div class="app">
   <header>
-    <div class="brand">조직 운영계획</div>
+    <div class="brand">ATEC-SANDBOX <span class="bsub">│ 조직 운영계획</span></div>
     <a class="btn" id="b-hc" href="./headcount.html" style="text-decoration:none;color:inherit">고용증가율</a>
     <span id="vtitle" hidden></span>
     <button class="btn primary" id="b-endprev" hidden>미리보기 끝내기</button>
@@ -254,7 +255,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
   </main>
 </div>
 <div id="login" class="modal" hidden><form class="box" id="login-form" style="max-width:340px">
-  <b style="font-size:15px">조직 운영계획</b><p class="muted mini" style="margin:0">회사에서 받은 아이디로 로그인하세요.</p>
+  <b style="font-size:15px">ATEC-SANDBOX · 조직 운영계획</b><p class="muted mini" style="margin:0">회사에서 받은 아이디로 로그인하세요.</p>
   <input id="l-id" placeholder="아이디" autocomplete="username"><input id="l-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
   <p id="l-err" class="mini" style="color:var(--accent);margin:0;min-height:1.2em"></p>
   <button class="btn primary" type="submit">로그인</button></form></div>
