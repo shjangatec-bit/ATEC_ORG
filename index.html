@@ -623,6 +623,7 @@ function unitPane(d, u){
   <div class="fld"><label for="f-ustat">구분</label><select id="f-ustat">${STATUS.map(s => `<option value="${s[0]}"${s[0] === u.status ? " selected" : ""}>${s[0] ? s[1] : "자동 · " + (AUTO[u.id] || "기존")}</option>`).join("")}</select></div>
   <div class="fld"><label for="f-uhead">조직장</label><select id="f-uhead"><option value=""${hv === "" ? " selected" : ""}>공석</option><option value="__text"${hv === "__text" ? " selected" : ""}>직접 입력 (모회사·외부 등)</option>
     ${mine.length ? `<optgroup label="이 조직 소속">${mine.map(pOpt).join("")}</optgroup>` : ""}<optgroup label="다른 조직 (겸직)">${others.map(pOpt).join("")}</optgroup></select></div>
+  <div class="fld"><label for="f-uhead-q" class="mini">이름 찾기</label><div style="min-width:0"><input id="f-uhead-q" placeholder="이름 일부 입력 → Enter로 지정" autocomplete="off" style="width:100%;box-sizing:border-box"><div id="f-uhead-r" class="row" style="flex-wrap:wrap;gap:4px;margin-top:4px"></div></div></div>
   ${hv === "__text" ? `<div class="fld"><label for="f-uheadt">표기</label><input id="f-uheadt" value="${esc(u.headText)}" placeholder="예: 모) 이사 홍길동"></div>` : ""}
   <div class="fld"><label for="f-unote">메모</label><input id="f-unote" value="${esc(u.note)}" placeholder="예: 중부·남부 통합"></div>
   ${isRoot ? "" : `<div class="fld"><label for="f-upar">상위 조직</label><select id="f-upar">${unitOptions(d, subtree(d, u.id), u.parent)}</select></div>
@@ -822,6 +823,7 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("keydown", e => {
+  if (e.target.id === "f-uhead-q" && e.key === "Enter") { e.preventDefault(); const m = headMatches(e.target.value); if (m.length) pickHead(m[0].value); else toast("맞는 이름이 없습니다."); return; }
   const typing = e.target.matches("input, textarea, select");
   if ((e.ctrlKey || e.metaKey) && !typing) {
     if (e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
@@ -859,6 +861,7 @@ function handleAct(act, el){
       copy(lines.join("\n"), "요약표를 복사했습니다. 엑셀에 붙여넣으세요."); break; }
     case "copydiff": { const df = diffNow(); if (!df) return; const t = [S.view ? `[${S.pub.baseName}] → [${S.pub.name}]` : `[${S.scen[S.base].name}] → [${S.scen[S.cur].name}]`, "", "■ 조직 변경", ...df.units.map(x => "- " + x.t), "", "■ 인원 변동", ...df.people.map(x => "- " + x.t)]; copy(t.join("\n"), "변경사항을 복사했습니다."); break; }
     case "ai-sum": aiSummary(); break;
+    case "pick-head": pickHead(el.dataset.v); break;
     case "ai-copy": { const t = $("#ai-out") && $("#ai-out").innerText; if (t) copy(t, "요약을 복사했습니다."); break; }
     case "ai-redo": aiSummary(true); break;
     case "do-import": doImport(); break;
@@ -908,7 +911,11 @@ function fallbackCopy(text, msg){
 }
 
 /* panel inputs */
+function headMatches(q){ const sel = $("#f-uhead"), n = String(q || "").replace(/\s/g, ""); if (!sel || !n) return []; return [...sel.options].filter(o => o.value && o.value !== "__text" && o.textContent.replace(/\s/g, "").includes(n)); }
+function headSearch(q){ const out = $("#f-uhead-r"); if (!out) return; const m = headMatches(q); out.innerHTML = m.slice(0, 8).map((o, i) => `<button class="btn sm${i === 0 ? " primary" : ""}" data-act="pick-head" data-v="${esc(o.value)}">${esc(o.textContent)}</button>`).join("") || (String(q).trim() ? `<span class="muted mini">맞는 이름이 없습니다</span>` : ""); }
+function pickHead(v){ const sel = $("#f-uhead"); if (!sel || !v) return; sel.value = v; sel.dispatchEvent(new Event("change", {bubbles: true})); }
 document.addEventListener("input", e => {
+  if (e.target.id === "f-uhead-q") { headSearch(e.target.value); return; }
   const d = D(); if (!d || !S.sel) return;
   const t = e.target, id = t.id;
   const u = S.sel.k === "u" ? d.units.find(x => x.id === S.sel.id) : null;
