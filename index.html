@@ -67,7 +67,7 @@ select,input[type=text],input:not([type]),textarea{border:1px solid var(--line);
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
 .rk{font-size:10.5px;color:var(--muted);margin-right:2px}
 .chip.hit .rk{color:inherit}
-body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
+body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-ppl,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
 body.present main{grid-template-columns:minmax(0,1fr)}
 body.present .canvas{height:auto}
 .comp td.n,.comp th.n{min-width:30px}
@@ -173,6 +173,10 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
 .empty h2{font-size:17px;margin:0 0 8px}
 .empty p{color:var(--muted)}
 .modal{position:fixed;inset:0;background:rgba(10,14,22,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.ppl-tbl th{cursor:pointer;white-space:nowrap;position:sticky;top:0;background:var(--surface2);z-index:1}
+.ppl-tbl th.on{color:var(--accent)}
+.ppl-tbl td{white-space:nowrap}
+.ppl-tbl td.num,.ppl-tbl th.num{text-align:right}
 .modal .box{background:var(--surface);border-radius:8px;padding:16px;width:min(520px,100%);display:flex;flex-direction:column;gap:10px;max-height:90%;overflow:auto}
 .modal textarea{width:100%;min-height:160px;font-family:var(--f-num);font-size:11.5px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:8px 14px;border-radius:6px;font-size:12.5px;z-index:30;max-width:calc(100% - 32px)}
@@ -220,6 +224,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <input id="q" placeholder="이름 찾기" aria-label="이름 찾기" style="width:110px">
       <button class="btn" id="b-exp">내보내기</button>
       <button class="btn" id="b-imp">가져오기</button>
+      <button class="btn" id="b-ppl" title="직원별 직급·년차·생년·입사일·근속을 표로 봅니다">인원표</button>
       <button class="btn" id="b-hr">인사정보 넣기</button>
       <button class="btn primary" id="b-pub" hidden>경영진 공개</button>
       <button class="btn" id="b-theme" type="button"></button><button class="btn" id="b-logout" hidden>로그아웃</button>
@@ -862,6 +867,8 @@ function handleAct(act, el){
     case "copydiff": { const df = diffNow(); if (!df) return; const t = [S.view ? `[${S.pub.baseName}] → [${S.pub.name}]` : `[${S.scen[S.base].name}] → [${S.scen[S.cur].name}]`, "", "■ 조직 변경", ...df.units.map(x => "- " + x.t), "", "■ 인원 변동", ...df.people.map(x => "- " + x.t)]; copy(t.join("\n"), "변경사항을 복사했습니다."); break; }
     case "ai-sum": aiSummary(); break;
     case "pick-head": pickHead(el.dataset.v); break;
+    case "ppl-sort": { const k = el.dataset.k; S.pt.dir = S.pt.k === k ? -S.pt.dir : 1; S.pt.k = k; renderPpl(); break; }
+    case "ppl-copy": copy(pplTsv(), "인원표를 복사했습니다. 엑셀에 붙여 넣으세요."); break;
     case "ai-copy": { const t = $("#ai-out") && $("#ai-out").innerText; if (t) copy(t, "요약을 복사했습니다."); break; }
     case "ai-redo": aiSummary(true); break;
     case "do-import": doImport(); break;
@@ -901,6 +908,42 @@ async function aiSummary(force){
     box(`<div class="ai-out" style="color:var(--accent)">${esc(e.message || "요약하지 못했습니다.")}</div>`, `<button class="btn" data-act="ai-redo">다시 시도</button>`);
   }
 }
+/* ---------- 인원표 ---------- */
+function pplRows(d){
+  const ord = {}, top = {}; let i = 0; const r = rootOf(d);
+  const walk = (id, t) => { kids(d, id).forEach(u => { ord[u.id] = i++; top[u.id] = t || u.name; walk(u.id, t || u.name); }); };
+  ord[r.id] = -1; top[r.id] = "대표이사"; walk(r.id, null);
+  const yr = new Date().getFullYear(), showBirth = !S.readOnly && !S.view;
+  return d.people.filter(p => !p.vacant).map(p => {
+    const m = String(p.hired || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); const mo = m ? Math.max(0, (new Date().getFullYear() - +m[1]) * 12 + (new Date().getMonth() - (+m[2] - 1)) - (new Date().getDate() < +m[3] ? 1 : 0)) : null;
+    return {p, name: p.name, top: p.unit ? (top[p.unit] || "") : "미배치", unit: unitName(d, p.unit), org: p.unit ? (ord[p.unit] ?? 999) : 1000, rank: p.rank || "", rk: RANK_ORDER.indexOf(p.rank), ry: p.rankYears ? +p.rankYears : null, job: p.job || "",
+      birth: showBirth && p.birth ? +p.birth : null, age: showBirth && p.birth ? yr - +p.birth : null, hired: p.hired || "", mo, ten: p.hired ? tenure(p.hired) : "", mk: marks(p).replace("↔", "")};
+  });
+}
+const PPL_COLS = [["org", "소속"], ["name", "이름"], ["rank", "직급"], ["ry", "년차", 1], ["job", "직무"], ["birth", "생년", 1, 1], ["age", "나이", 1, 1], ["hired", "입사일"], ["mo", "근속", 1], ["mk", "표시"]];
+function pplSorted(d){
+  const st = S.pt, q = st.q.replace(/\s/g, ""), rows = pplRows(d).filter(r => !q || (r.name + r.unit + r.top + r.rank + r.job).replace(/\s/g, "").includes(q));
+  const key = r => st.k === "org" ? r.org : st.k === "rank" ? -r.rk : st.k === "hired" ? (r.hired || "9999") : r[st.k];
+  return rows.sort((a, b) => { const x = key(a), y = key(b); if (x == null && y == null) return a.org - b.org; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : (a.org - b.org) || (b.rk - a.rk)) * st.dir; });
+}
+function renderPpl(){
+  const d = D(); if (!d) return; const st = S.pt, showBirth = !S.readOnly && !S.view;
+  const cols = PPL_COLS.filter(c => showBirth || !c[3]), rows = pplSorted(d);
+  const cell = (r, k) => k === "org" ? `${esc(r.top)}${r.unit !== r.top ? ` <span class="muted">› ${esc(r.unit)}</span>` : ""}` : k === "ry" ? (r.ry != null ? r.ry + "년차" : "") : k === "hired" ? esc(fmtYmd(r.hired)) : k === "mo" ? esc(r.ten) : k === "age" ? (r.age != null ? r.age + "세" : "") : k === "birth" ? (r.birth ?? "") : esc(r[k] ?? "");
+  const wasFocus = document.activeElement && document.activeElement.id === "ppl-q", pos = wasFocus ? document.activeElement.selectionStart : null;
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(1180px,100%);max-height:92%">
+    <div class="row" style="justify-content:space-between;align-items:center"><b>인원표 <span class="muted mini">‘${esc(S.scen[S.cur].name)}’ · ${rows.length}명${showBirth ? "" : " · 생년·나이는 보기 전용 계정에 표시하지 않습니다"}</span></b>
+    <span class="row"><input id="ppl-q" placeholder="이름·조직·직급 찾기" value="${esc(st.q)}" style="width:200px" autocomplete="off"><button class="btn" data-act="ppl-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
+    <div class="tblwrap" style="overflow:auto;max-height:70vh"><table class="ppl-tbl"><thead><tr><th class="num">#</th>${cols.map(c => `<th class="${c[2] ? "num" : ""}${st.k === c[0] ? " on" : ""}" data-act="ppl-sort" data-k="${c[0]}">${c[1]}${st.k === c[0] ? (st.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((r, i) => `<tr><td class="num muted">${i + 1}</td>${cols.map(c => `<td class="${c[2] ? "num" : ""}">${cell(r, c[0])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length + 1}" class="muted">맞는 사람이 없습니다</td></tr>`}</tbody></table></div>
+    <p class="muted mini" style="margin:0">제목을 누르면 정렬됩니다 · 나이는 올해 − 생년 · 근속은 오늘 기준</p></div></div>`;
+  if (wasFocus) { const q = $("#ppl-q"); q.focus(); try { q.setSelectionRange(pos, pos); } catch (e) {} }
+}
+function pplTsv(){
+  const d = D(); const showBirth = !S.readOnly && !S.view, rows = pplSorted(d);
+  const head = ["상위조직", "소속", "이름", "직급", "년차", "직무"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "표시"]);
+  return [head.join("\t")].concat(rows.map(r => [r.top, r.unit, r.name, r.rank, r.ry ?? "", r.job].concat(showBirth ? [r.birth ?? "", r.age ?? ""] : []).concat([fmtYmd(r.hired), r.ten, r.mk]).join("\t"))).join("\n");
+}
 function copy(text, msg){
   const done = () => toast(msg);
   try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, msg)); } catch (e) { fallbackCopy(text, msg); }
@@ -916,6 +959,7 @@ function headSearch(q){ const out = $("#f-uhead-r"); if (!out) return; const m =
 function pickHead(v){ const sel = $("#f-uhead"); if (!sel || !v) return; sel.value = v; sel.dispatchEvent(new Event("change", {bubbles: true})); }
 document.addEventListener("input", e => {
   if (e.target.id === "f-uhead-q") { headSearch(e.target.value); return; }
+  if (e.target.id === "ppl-q") { S.pt.q = e.target.value; renderPpl(); return; }
   const d = D(); if (!d || !S.sel) return;
   const t = e.target, id = t.id;
   const u = S.sel.k === "u" ? d.units.find(x => x.id === S.sel.id) : null;
@@ -972,6 +1016,7 @@ $("#b-exp").onclick = () => {
 };
 $("#b-imp").onclick = openImport;
 $("#b-hr").onclick = openHR;
+$("#b-ppl").onclick = () => { S.pt = S.pt || {k: "org", dir: 1, q: ""}; renderPpl(); };
 function fmtYmd(v){ const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? m[1] + "." + m[2] + "." + m[3] : String(v || ""); }
 function tenure(v){
   const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return "-";
