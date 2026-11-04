@@ -927,6 +927,58 @@ function xlsxOrgRows(d){
   if (free.length) out.push({dep: 0, name: "미배치", head: "", n: free.length, v: free.filter(p => p.vacant).length, own: free.length, st: "", mem: free.map(p => (p.rank && !p.vacant ? p.rank + " " : "") + pname(p)).join(", "), free: 1});
   return {out, max};
 }
+function xlsxChart(X, d, title){
+  const ws = {}, merges = [], set = (r, c, v, s) => { ws[X.utils.encode_cell({r, c})] = {t: typeof v === "number" ? "n" : "s", v: v ?? "", s}; };
+  const line = {style: "thin", color: {rgb: "8A93A6"}}, thick = {style: "medium", color: {rgb: "8A93A6"}};
+  const font = (o) => Object.assign({name: "맑은 고딕", sz: 10}, o);
+  const pal = st => st === "신설" ? ["C4004B", "FFFFFF", "FBE6EE"] : st === "변경" ? ["A05F00", "FFFFFF", "FFF1D6"] : null;
+  const box = (r, c, u, big) => {
+    const st = effStatus(u), pc = pal(st), cnt = count(d, u.id);
+    const hd = big ? (pc ? pc[0] : "25304A") : (pc ? pc[2] : "E9EDF5"), ink = big ? "FFFFFF" : (pc ? pc[0] : "1F2430");
+    const own = inUnit(d, u.id).slice().sort((a, b) => (b.id === u.headId) - (a.id === u.headId) || (a.vacant - b.vacant) || RANK_ORDER.indexOf(b.rank) - RANK_ORDER.indexOf(a.rank));
+    const rows = [], top = r;
+    const edge = (rr, cc, last) => ({left: cc === c ? line : undefined, right: cc === c + 1 ? line : undefined, top: rr === top ? line : undefined, bottom: last ? line : undefined});
+    set(r, c, u.name, {font: font({bold: true, sz: 11, color: {rgb: ink}}), fill: {fgColor: {rgb: hd}}, alignment: {vertical: "center"}, border: edge(r, c)});
+    set(r, c + 1, cnt.n + "명" + (cnt.v ? " (채용" + cnt.v + ")" : ""), {font: font({bold: true, color: {rgb: ink}}), fill: {fgColor: {rgb: hd}}, alignment: {horizontal: "right", vertical: "center"}, border: edge(r, c + 1)});
+    r++;
+    const hs = {font: font({sz: 9, color: {rgb: big ? "C9D1E3" : "4B5563"}}), fill: {fgColor: {rgb: hd}}, alignment: {vertical: "center"}};
+    set(r, c, headLabel(d, u), Object.assign({border: edge(r, c, !own.length)}, hs)); set(r, c + 1, "", Object.assign({border: edge(r, c + 1, !own.length)}, hs)); merges.push({s: {r, c}, e: {r, c: c + 1}}); r++;
+    for (let i = 0; i < own.length; i += 2){
+      const last = i + 2 >= own.length;
+      [0, 1].forEach(k => { const p = own[i + k], mk = p ? marks(p).replace("↔", "") : "";
+        set(r, c + k, p ? (mk ? mk + " " : "") + (p.vacant ? pname(p) : p.name) : "", {font: font({bold: p && p.id === u.headId, italic: p && p.vacant, color: {rgb: p && p.vacant ? "C4004B" : "1F2430"}}), alignment: {vertical: "center", indent: 1}, border: edge(r, c + k, last)}); });
+      r++;
+    }
+    return r;
+  };
+  const root = rootOf(d), l1 = kids(d, root.id), free = d.people.filter(p => !p.unit);
+  const blocks = l1.length + (free.length ? 1 : 0), cols = [];
+  for (let i = 0; i < blocks; i++) cols.push({wch: 14}, {wch: 12}, {wch: 2});
+  set(0, 0, title, {font: font({bold: true, sz: 14})});
+  [["신설", "C4004B", "FBE6EE"], ["변경", "A05F00", "FFF1D6"]].forEach(([t, a, b], i) => set(1, i, "■ " + t, {font: font({bold: true, color: {rgb: a}}), fill: {fgColor: {rgb: b}}, alignment: {horizontal: "center"}}));
+  set(1, 2, "", {}); set(1, 3, "굵은 이름 = 조직장 · 빨간 글씨 = 채용예정", {font: font({sz: 9, color: {rgb: "6B7280"}})});
+  const mid = Math.max(0, Math.floor((l1.length - 1) / 2)) * 3;
+  let r = box(2, mid, root, true);
+  set(r, mid, "", {border: {right: thick}}); r++;
+  if (l1.length > 1) for (let c = 0; c <= (l1.length - 1) * 3 + 1; c++) ws[X.utils.encode_cell({r, c})] = {t: "s", v: "", s: {border: {bottom: thick}}};
+  r++;
+  const start = r; let maxR = r;
+  l1.forEach((u, i) => {
+    const c = i * 3; let rr = box(start, c, u, BIG.has(u.type) || true) + 1;
+    (function walk(id, dep){ kids(d, id).forEach(k => { rr = box(rr, c, Object.assign({}, k, {name: (dep > 1 ? "└ " : "") + k.name}), false) + 1; walk(k.id, dep + 1); }); })(u.id, 1);
+    maxR = Math.max(maxR, rr);
+  });
+  if (free.length){
+    const c = l1.length * 3, own = free; let rr = start;
+    set(rr, c, "미배치", {font: font({bold: true, color: {rgb: "FFFFFF"}}), fill: {fgColor: {rgb: "6B7280"}}, border: {left: line, top: line}}); set(rr, c + 1, own.length + "명", {font: font({bold: true, color: {rgb: "FFFFFF"}}), fill: {fgColor: {rgb: "6B7280"}}, alignment: {horizontal: "right"}, border: {right: line, top: line}}); rr++;
+    for (let i = 0; i < own.length; i += 2){ const last = i + 2 >= own.length; [0, 1].forEach(k => { const p = own[i + k]; set(rr, c + k, p ? pname(p) : "", {font: font({}), alignment: {indent: 1}, border: {left: k === 0 ? line : undefined, right: k === 1 ? line : undefined, bottom: last ? line : undefined}}); }); rr++; }
+    maxR = Math.max(maxR, rr);
+  }
+  ws["!ref"] = X.utils.encode_range({s: {r: 0, c: 0}, e: {r: maxR, c: Math.max(1, blocks * 3 - 1)}});
+  ws["!merges"] = merges; ws["!cols"] = cols; ws["!rows"] = Array.from({length: maxR + 1}, () => ({hpt: 17}));
+  ws["!margins"] = {left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2};
+  return ws;
+}
 async function exportXlsx(){
   const d = D(); if (!d) return;
   let X; try { X = await loadXlsx(); } catch (e) { toast("엑셀 기능을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요."); return; }
@@ -943,15 +995,17 @@ async function exportXlsx(){
     return ws;
   };
   const wb = X.utils.book_new(), today = fmtYmd(new Date().toISOString().slice(0, 10));
-  // 1) 조직도
+  // 0) 조직도 그림
+  X.utils.book_append_sheet(wb, xlsxChart(X, d, `조직도 — ${nm} (${today} 기준)`), "조직도");
+  // 1) 조직 목록
   const {out, max} = xlsxOrgRows(d), lv = Array.from({length: max + 1}, (_, i) => i === 0 ? "최상위" : i + "단계");
   const orgHead = lv.concat(["조직장", "인원(하위 포함)", "채용예정", "직속 인원", "구분", "구성원"]);
   const orgRows = out.map(o => lv.map((_, i) => i === o.dep ? o.name : "").concat([o.head, o.n, o.v || "", o.own, o.st, o.mem]));
-  X.utils.book_append_sheet(wb, sheet(`조직도 — ${nm} (${today} 기준)`, orgHead, orgRows, lv.map(() => 16).concat([20, 10, 9, 9, 8, 70]), (i, c) => {
+  X.utils.book_append_sheet(wb, sheet(`조직 목록 — ${nm} (${today} 기준)`, orgHead, orgRows, lv.map(() => 16).concat([20, 10, 9, 9, 8, 70]), (i, c) => {
     const o = out[i], fill = o.dep === 0 && !o.free ? {fgColor: {rgb: "FCE4EC"}} : o.dep === 1 ? {fgColor: {rgb: "F3F4F7"}} : undefined;
     const base = c < lv.length ? {alignment: {vertical: "center"}, border, font: {bold: c === o.dep && o.dep <= 1}} : c >= lv.length + 1 && c <= lv.length + 4 ? N : C;
     return fill ? Object.assign({}, base, {fill}) : base;
-  }), "조직도");
+  }), "조직 목록");
   // 2) 구성원
   const showBirth = !S.readOnly && !S.view, prev = S.pt; S.pt = {k: "org", dir: 1, q: ""};
   const pr = pplSorted(d); S.pt = prev;
