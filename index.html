@@ -67,7 +67,7 @@ select,input[type=text],input:not([type]),textarea{border:1px solid var(--line);
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
 .rk{font-size:10.5px;color:var(--muted);margin-right:2px}
 .chip.hit .rk{color:inherit}
-body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-ppl,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
+body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-ppl,body.present #b-xlsx,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
 body.present main{grid-template-columns:minmax(0,1fr)}
 body.present .canvas{height:auto}
 .comp td.n,.comp th.n{min-width:30px}
@@ -225,6 +225,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <button class="btn" id="b-exp">내보내기</button>
       <button class="btn" id="b-imp">가져오기</button>
       <button class="btn" id="b-ppl" title="직원별 직급·년차·생년·입사일·근속을 표로 봅니다">인원표</button>
+      <button class="btn" id="b-xlsx" title="지금 보고 있는 조직안을 엑셀 파일로 내려받습니다">엑셀 저장</button>
       <button class="btn" id="b-hr">인사정보 넣기</button>
       <button class="btn primary" id="b-pub" hidden>경영진 공개</button>
       <button class="btn" id="b-theme" type="button"></button><button class="btn" id="b-logout" hidden>로그아웃</button>
@@ -492,7 +493,7 @@ function renderHeader(){
   $("#b-rankshow").classList.toggle("on", S.showRank);
   $("#b-endprev").hidden = !(S.view && S.preview);
   document.body.classList.toggle("viewer", S.view);
-  ["#sname","#b-dup","#b-del","#b-exp","#b-pub","#b-people","#b-moves","#b-cmp","#q"].forEach(s => $(s).disabled = !has);
+  ["#sname","#b-dup","#b-del","#b-exp","#b-xlsx","#b-pub","#b-people","#b-moves","#b-cmp","#q"].forEach(s => $(s).disabled = !has);
   $("#b-moves").classList.toggle("on", S.showMoves);
   const h = H(S.cur); $("#b-undo").disabled = !h.u.length; $("#b-redo").disabled = !h.r.length;
   $("#b-people").classList.toggle("on", S.showPeople); $("#b-cmp").classList.toggle("on", S.compare);
@@ -908,6 +909,75 @@ async function aiSummary(force){
     box(`<div class="ai-out" style="color:var(--accent)">${esc(e.message || "요약하지 못했습니다.")}</div>`, `<button class="btn" data-act="ai-redo">다시 시도</button>`);
   }
 }
+/* ---------- 엑셀 저장 ---------- */
+let xlsxLib = null;
+function loadXlsx(){
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return xlsxLib = xlsxLib || new Promise((ok, no) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"; s.onload = () => window.XLSX ? ok(window.XLSX) : no(new Error("load")); s.onerror = () => { xlsxLib = null; no(new Error("load")); }; document.head.appendChild(s); });
+}
+function xlsxOrgRows(d){
+  const r = rootOf(d), out = []; let max = 0;
+  (function walk(u, dep){
+    max = Math.max(max, dep);
+    const c = count(d, u.id), own = inUnit(d, u.id).slice().sort((a, b) => (b.id === u.headId) - (a.id === u.headId) || RANK_ORDER.indexOf(b.rank) - RANK_ORDER.indexOf(a.rank));
+    out.push({dep, name: u.name, head: headLabel(d, u), n: c.n, v: c.v, own: own.length, st: effStatus(u) || "", mem: own.map(p => (p.rank && !p.vacant ? p.rank + " " : "") + pname(p)).join(", ")});
+    kids(d, u.id).forEach(k => walk(k, dep + 1));
+  })(r, 0);
+  const free = d.people.filter(p => !p.unit);
+  if (free.length) out.push({dep: 0, name: "미배치", head: "", n: free.length, v: free.filter(p => p.vacant).length, own: free.length, st: "", mem: free.map(p => (p.rank && !p.vacant ? p.rank + " " : "") + pname(p)).join(", "), free: 1});
+  return {out, max};
+}
+async function exportXlsx(){
+  const d = D(); if (!d) return;
+  let X; try { X = await loadXlsx(); } catch (e) { toast("엑셀 기능을 불러오지 못했습니다. 인터넷 연결을 확인해 주세요."); return; }
+  const nm = (S.scen[S.cur] && S.scen[S.cur].name) || (S.pub && S.pub.name) || "조직도";
+  const bd = {style: "thin", color: {rgb: "C9CDD6"}}, border = {top: bd, bottom: bd, left: bd, right: bd};
+  const H = {font: {bold: true, color: {rgb: "FFFFFF"}}, fill: {fgColor: {rgb: "1F2A44"}}, alignment: {horizontal: "center", vertical: "center", wrapText: true}, border};
+  const C = {alignment: {vertical: "center", wrapText: true}, border}, N = {alignment: {horizontal: "center", vertical: "center"}, border};
+  const sheet = (title, head, rows, widths, styleOf) => {
+    const aoa = [[title], [], head].concat(rows), ws = X.utils.aoa_to_sheet(aoa);
+    ws["A1"].s = {font: {bold: true, sz: 14}};
+    head.forEach((_, c) => { const a = X.utils.encode_cell({r: 2, c}); ws[a].s = H; });
+    rows.forEach((row, i) => row.forEach((v, c) => { const a = X.utils.encode_cell({r: i + 3, c}); if (!ws[a]) ws[a] = {t: "s", v: ""}; ws[a].s = styleOf ? styleOf(i, c) : C; }));
+    ws["!cols"] = widths.map(w => ({wch: w})); ws["!freeze"] = {xSplit: 0, ySplit: 3}; ws["!views"] = [{state: "frozen", ySplit: 3}];
+    return ws;
+  };
+  const wb = X.utils.book_new(), today = fmtYmd(new Date().toISOString().slice(0, 10));
+  // 1) 조직도
+  const {out, max} = xlsxOrgRows(d), lv = Array.from({length: max + 1}, (_, i) => i === 0 ? "최상위" : i + "단계");
+  const orgHead = lv.concat(["조직장", "인원(하위 포함)", "채용예정", "직속 인원", "구분", "구성원"]);
+  const orgRows = out.map(o => lv.map((_, i) => i === o.dep ? o.name : "").concat([o.head, o.n, o.v || "", o.own, o.st, o.mem]));
+  X.utils.book_append_sheet(wb, sheet(`조직도 — ${nm} (${today} 기준)`, orgHead, orgRows, lv.map(() => 16).concat([20, 10, 9, 9, 8, 70]), (i, c) => {
+    const o = out[i], fill = o.dep === 0 && !o.free ? {fgColor: {rgb: "FCE4EC"}} : o.dep === 1 ? {fgColor: {rgb: "F3F4F7"}} : undefined;
+    const base = c < lv.length ? {alignment: {vertical: "center"}, border, font: {bold: c === o.dep && o.dep <= 1}} : c >= lv.length + 1 && c <= lv.length + 4 ? N : C;
+    return fill ? Object.assign({}, base, {fill}) : base;
+  }), "조직도");
+  // 2) 구성원
+  const showBirth = !S.readOnly && !S.view, prev = S.pt; S.pt = {k: "org", dir: 1, q: ""};
+  const pr = pplSorted(d); S.pt = prev;
+  const heads = new Set(d.units.map(u => u.headId).filter(Boolean));
+  const pHead = ["상위조직", "소속", "이름", "직급", "년차", "직무", "조직장"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "표시"]);
+  const pRows = pr.map(r => [r.top, r.unit, r.name, r.rank, r.ry ?? "", r.job, heads.has(r.p.id) ? "○" : ""].concat(showBirth ? [r.birth ?? "", r.age ?? ""] : []).concat([fmtYmd(r.hired), r.ten, r.mk]));
+  const vac = d.people.filter(p => p.vacant).map(p => [p.unit ? pplTop(d, p.unit) : "미배치", unitName(d, p.unit), "채용예정", p.rank || "", "", p.job || "", ""].concat(showBirth ? ["", ""] : []).concat(["", "", ""]));
+  X.utils.book_append_sheet(wb, sheet(`구성원 — ${nm} · ${pr.length}명${vac.length ? " + 채용예정 " + vac.length + "명" : ""}`, pHead, pRows.concat(vac), [14, 16, 10, 8, 7, 14, 7].concat(showBirth ? [7, 7] : []).concat([12, 12, 8]), (i, c) => [4, 6].includes(c) || (showBirth && (c === 7 || c === 8)) ? N : C), "구성원");
+  // 3) 변경사항
+  const df = diffNow();
+  if (df){
+    const bn = S.view ? "현행" : S.scen[S.base].name, ch = [];
+    df.rows.forEach(r => ch.push(["조직별 인원", r.name, r.b ?? "없음", r.c ?? "없음", (r.c ?? 0) - (r.b ?? 0) || ""]));
+    df.units.forEach(u => ch.push(["조직 변경", u.t, "", "", ""]));
+    df.people.forEach(p => ch.push(["인원 변동", p.t, "", "", ""]));
+    X.utils.book_append_sheet(wb, sheet(`변경사항 — ‘${bn}’ 대비 ‘${nm}’`, ["구분", "내용", "기준안", "비교안", "증감"], ch, [12, 60, 9, 9, 7], (i, c) => c >= 2 ? N : C), "변경사항");
+  }
+  const f = ("조직도_" + nm + "_" + today.replace(/\./g, "")).replace(/[\\/:*?"<>|]/g, "_") + ".xlsx";
+  try {
+    const buf = X.write(wb, {bookType: "xlsx", type: "array", compression: true});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([buf], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})); a.download = f;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast("엑셀 파일을 저장했습니다. 다운로드 폴더를 확인하세요.");
+  } catch (e) { toast("엑셀 파일을 저장하지 못했습니다."); }
+}
+function pplTop(d, uid){ const m = um(d), r = rootOf(d); let u = m[uid]; if (!u || u.id === r.id) return "대표이사"; while (u.parent && m[u.parent] && m[u.parent].id !== r.id) u = m[u.parent]; return u.name; }
 /* ---------- 인원표 ---------- */
 function pplRows(d){
   const ord = {}, top = {}; let i = 0; const r = rootOf(d);
@@ -1016,6 +1086,7 @@ $("#b-exp").onclick = () => {
 };
 $("#b-imp").onclick = openImport;
 $("#b-hr").onclick = openHR;
+$("#b-xlsx").onclick = exportXlsx;
 $("#b-ppl").onclick = () => { S.pt = S.pt || {k: "org", dir: 1, q: ""}; renderPpl(); };
 function fmtYmd(v){ const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? m[1] + "." + m[2] + "." + m[3] : String(v || ""); }
 function tenure(v){
