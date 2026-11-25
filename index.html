@@ -1321,33 +1321,33 @@ const PROMO = [{from: "책임", to: "수석", years: 10, aica: 3}, {from: "선�
 const EV_PT = {S: 5, A: 4, B: 3, C: 2, D: 1};
 function scenYear(name){ const m = String(name || "").match(/(?:20)?(\d{2})\s*년/); return m ? 2000 + +m[1] : new Date().getFullYear(); }
 function promoRows(d, name, Y){
-  const y0 = scenYear(name), y = Y || y0, evY = [y - 3, y - 2, y - 1].map(String), out = [];
+  const y0 = scenYear(name), P = Y || y0 + 1, w = P - 1, evY = [P - 3, P - 2, P - 1].map(String), out = [];
   d.people.forEach(p => {
     if (p.vacant) return; const r = PROMO.find(x => x.from === (p.rank || "").trim()); if (!r) return;
-    const ry0 = +p.rankYears || 0, ry = ry0 + (y - y0), e = evOf(p), gs = evY.filter(k => e[k]).map(k => ({y: k, g: e[k]}));
+    const ry0 = +p.rankYears || 0, ry = ry0 + (w - y0), e = evOf(p), gs = evY.filter(k => e[k]).map(k => ({y: k, g: e[k]}));
     const pts = gs.map(x => EV_PT[x.g[0]]).filter(Boolean), avg = pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : null;
     const ai = Math.max(0, ...certsOf(p).filter(c => /AICA/i.test(c.n)).map(c => gLv(c.g)));
-    const ok = ry0 > 0 && ry >= r.years, first = y0 + Math.max(0, r.years - ry0);
+    const ok = ry0 > 0 && ry >= r.years, first = y0 + Math.max(0, r.years - ry0) + 1;
     out.push({p, r, ry, ry0, gs, avg, ai, ok, first, noYears: !ry0, okE: avg != null && avg >= 3, okA: ai >= r.aica});
   });
   return out.sort((a, b) => (b.ok - a.ok) || (a.first - b.first) || PROMO.indexOf(a.r) - PROMO.indexOf(b.r) || b.ry - a.ry);
 }
 function renderPromo(){
-  const d = D(); if (!d || !canEval()) return; const nm = S.scen[S.cur].name, y0 = scenYear(nm), st = S.pr, Y = st.y && st.y >= y0 ? st.y : y0;
+  const d = D(); if (!d || !canEval()) return; const nm = S.scen[S.cur].name, y0 = scenYear(nm), st = S.pr, Y = st.y && st.y > y0 ? st.y : y0 + 1, W = Y - 1;
   const all = promoRows(d, nm, Y), rows = all.filter(r => st.all ? true : r.ok), nOk = all.filter(r => r.ok).length, nNew = all.filter(r => r.ok && r.first === Y).length, noY = all.filter(r => r.noYears).length;
   const avgTxt = r => r.avg == null ? `<span class="muted">없음</span>` : r.gs.map(g => g.g).join("·") + ` <span class="muted mini">(${(Math.round(r.avg * 100) / 100).toFixed(2)})</span>`;
-  const yo = [0, 1, 2, 3, 4].map(k => y0 + k).map(v => `<option value="${v}"${v === Y ? " selected" : ""}>${v}년</option>`).join("");
+  const yo = [1, 2, 3, 4, 5].map(k => y0 + k).map(v => `<option value="${v}"${v === Y ? " selected" : ""}>${v}년 승진</option>`).join("");
   $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(1040px,100%);max-height:92%">
-  <div class="row" style="justify-content:space-between;align-items:center"><b><select id="pr-y" style="font-weight:700">${yo}</select> 승진 심사 대상 <span class="muted mini">‘${esc(nm)}’ 기준 · ${nOk}명 (이 해에 새로 대상 ${nNew}명)</span></b>
-  <span class="row"><label class="mini"><input type="checkbox" id="pr-all"${st.all ? " checked" : ""}> 연차 안 된 사람도 보기</label><button class="btn" data-act="pr-mark"${nOk && Y === y0 ? "" : " disabled"} title="${Y === y0 ? "" : "안의 연도와 같은 해를 볼 때만 쓸 수 있습니다"}">대상자에 ■ 표시</button><button class="btn" data-act="pr-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
-  <p class="muted mini" style="margin:4px 0">직급 연차만으로 판단합니다: 사원 9년차 · 선임 8년차 · 책임 10년차 이상 (수석→임원은 발탁이라 제외). ${Y > y0 ? `${Y}년 연차는 이 안의 연차에 ${Y - y0}을 더해 계산했습니다(그 사이 승진 없다고 가정).` : ""} 평가·AICA는 참고로만 보여 줍니다.${noY ? ` <span style="color:var(--accent)">직급 연차가 비어 있는 ${noY}명은 판단하지 못했습니다.</span>` : ""}</p>
-  <div class="tblwrap" style="overflow:auto;max-height:66vh"><table class="ppl-tbl"><thead><tr><th>결과</th><th>이름</th><th>소속</th><th>현재</th><th>승진</th><th class="num">${Y}년 연차</th><th>처음 대상</th><th>최근 3년 평가 <span class="muted">(참고)</span></th><th>AICA <span class="muted">(참고)</span></th></tr></thead><tbody>
-  ${rows.map(r => `<tr${r.ok ? ` style="background:var(--accent-soft)"` : ""}><td><b>${r.ok ? "대상" : r.noYears ? "연차 없음" : "-"}</b></td><td>${esc(r.p.name)}</td><td>${esc(unitName(d, r.p.unit))}</td><td>${esc(r.p.rank)} ${r.ry0 ? r.ry0 + "년차" : ""}</td><td>${esc(r.r.to)}</td><td class="num">${r.ry0 ? r.ry + "년차" : ""}</td><td>${r.noYears ? "" : r.first + "년" + (r.ok && r.first < Y ? ` <span class="muted mini">(이월)</span>` : "")}</td><td>${avgTxt(r)}</td><td>${r.ai ? "L" + r.ai : `<span class="muted">없음</span>`}${r.r.aica ? ` <span class="muted mini">(기준 L${r.r.aica})</span>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">해당하는 사람이 없습니다</td></tr>`}
+  <div class="row" style="justify-content:space-between;align-items:center"><b><select id="pr-y" style="font-weight:700">${yo}</select> 대상자 <span class="muted mini">(${W}년 말 심사) · ‘${esc(nm)}’ 기준 · ${nOk}명 (새로 대상 ${nNew}명)</span></b>
+  <span class="row"><label class="mini"><input type="checkbox" id="pr-all"${st.all ? " checked" : ""}> 연차 안 된 사람도 보기</label><button class="btn" data-act="pr-mark"${nOk && Y === y0 + 1 ? "" : " disabled"} title="${Y === y0 + 1 ? "" : (y0 + 1) + "년 승진을 볼 때만 쓸 수 있습니다"}">대상자에 ■ 표시</button><button class="btn" data-act="pr-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
+  <p class="muted mini" style="margin:4px 0">직급 연차만으로 판단합니다: ${W}년 한 해를 사원 9년차 · 선임 8년차 · 책임 10년차 이상으로 근무하면 ${Y}년 승진 대상 (수석→임원은 발탁이라 제외). ${W > y0 ? `${W}년 연차는 이 안(${y0}년)의 연차에 ${W - y0}을 더해 계산했습니다(그 사이 승진 없다고 가정).` : ""} 평가·AICA는 참고로만 보여 줍니다.${noY ? ` <span style="color:var(--accent)">직급 연차가 비어 있는 ${noY}명은 판단하지 못했습니다.</span>` : ""}</p>
+  <div class="tblwrap" style="overflow:auto;max-height:66vh"><table class="ppl-tbl"><thead><tr><th>결과</th><th>이름</th><th>소속</th><th>현재</th><th>승진</th><th class="num">${W}년 연차</th><th>처음 승진 대상</th><th>최근 3년 평가 <span class="muted">(참고)</span></th><th>AICA <span class="muted">(참고)</span></th></tr></thead><tbody>
+  ${rows.map(r => `<tr${r.ok ? ` style="background:var(--accent-soft)"` : ""}><td><b>${r.ok ? "대상" : r.noYears ? "연차 없음" : "-"}</b></td><td>${esc(r.p.name)}</td><td>${esc(unitName(d, r.p.unit))}</td><td>${esc(r.p.rank)} ${r.ry0 ? r.ry0 + "년차" : ""}</td><td>${esc(r.r.to)}</td><td class="num">${r.ry0 ? r.ry + "년차" : ""}</td><td>${r.noYears ? "" : r.first + "년 승진" + (r.ok && r.first < Y ? ` <span class="muted mini">(이월)</span>` : "")}</td><td>${avgTxt(r)}</td><td>${r.ai ? "L" + r.ai : `<span class="muted">없음</span>`}${r.r.aica ? ` <span class="muted mini">(기준 L${r.r.aica})</span>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">해당하는 사람이 없습니다</td></tr>`}
   </tbody></table></div></div></div>`;
 }
 function promoTsv(){
-  const d = D(), nm = S.scen[S.cur].name, y0 = scenYear(nm), Y = S.pr.y && S.pr.y >= y0 ? S.pr.y : y0, rows = promoRows(d, nm, Y).filter(r => S.pr.all ? true : r.ok);
-  return [["결과", "이름", "소속", "현재 직급", "현재 연차", "승진 직급", Y + "년 연차", "처음 대상", "최근 3년 평가", "AICA"].join("\t")].concat(rows.map(r => [r.ok ? "대상" : r.noYears ? "연차 없음" : "-", r.p.name, unitName(d, r.p.unit), r.p.rank, r.ry0 || "", r.r.to, r.ry0 ? r.ry : "", r.noYears ? "" : r.first + "년", r.gs.map(g => g.y + " " + g.g).join(", "), r.ai ? "L" + r.ai : ""].join("\t"))).join("\n");
+  const d = D(), nm = S.scen[S.cur].name, y0 = scenYear(nm), Y = S.pr.y && S.pr.y > y0 ? S.pr.y : y0 + 1, rows = promoRows(d, nm, Y).filter(r => S.pr.all ? true : r.ok);
+  return [["결과", "이름", "소속", "현재 직급", "현재 연차", "승진 직급", (Y - 1) + "년 연차", "처음 승진 연도", "최근 3년 평가", "AICA"].join("\t")].concat(rows.map(r => [r.ok ? "대상" : r.noYears ? "연차 없음" : "-", r.p.name, unitName(d, r.p.unit), r.p.rank, r.ry0 || "", r.r.to, r.ry0 ? r.ry : "", r.noYears ? "" : r.first + "년", r.gs.map(g => g.y + " " + g.g).join(", "), r.ai ? "L" + r.ai : ""].join("\t"))).join("\n");
 }
 /* ---------- 평가 넣기 ---------- */
 let evPlan = null;
