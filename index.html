@@ -67,7 +67,7 @@ select,input[type=text],input:not([type]),textarea{border:1px solid var(--line);
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
 .rk{font-size:10.5px;color:var(--muted);margin-right:2px}
 .chip.hit .rk{color:inherit}
-body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-ppl,body.present #b-xlsx,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
+body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-cert,body.present #b-ppl,body.present #b-xlsx,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
 body.present main{grid-template-columns:minmax(0,1fr)}
 body.present .canvas{height:auto}
 .comp td.n,.comp th.n{min-width:30px}
@@ -121,6 +121,8 @@ body.present .canvas{height:auto}
 .chip.sel{outline:2px solid var(--accent);outline-offset:1px}
 .mk{font-size:10px;color:var(--accent)}
 .ct{font-size:9.5px;font-weight:700;color:var(--chg);border:1px solid var(--chg);border-radius:3px;padding:0 2px;margin-left:3px;line-height:1.2}
+.cf{font-size:9.5px;font-weight:700;color:#fff;background:#6d4bc4;border-radius:3px;padding:0 3px;margin-left:3px;line-height:1.3}
+.cf.l3{background:#4b3a9c}.cf.l4{background:#c4004b}.cf.ot{background:#3f7d5a}
 .ct.lv{color:var(--lv,#2f6fb0);border-color:var(--lv,#2f6fb0)}
 .chip.hit .ct{color:inherit;border-color:currentColor}
 .chip.mv{border-color:var(--chg);background:var(--chg-soft)}
@@ -131,7 +133,7 @@ body.present .canvas{height:auto}
 .mvlist b{color:var(--chg)}
 body.viewer #scen,body.viewer #sname,body.viewer #b-dup,body.viewer #b-new,body.viewer #b-del,body.viewer #b-undo,body.viewer #b-redo,body.viewer #b-exp,body.viewer #b-imp,body.viewer #b-pub,body.viewer .sep,body.viewer #tray,body.viewer .tab[data-tab="edit"]{display:none}
 #vtitle{font-weight:600;font-size:14px}
-body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-hr,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
+body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-hr,body.ro #b-cert,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
 body.viewer .lg-review{display:none}
 #vtitle small{font-weight:400;color:var(--muted);margin-left:8px;font-size:12px}
 .pubinfo{background:var(--surface2);border-radius:6px;padding:8px 10px;font-size:12.5px}
@@ -217,6 +219,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <button class="btn" id="b-redo" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행">↷</button>
       <button class="btn on" id="b-people">인원 표시</button>
       <button class="btn" id="b-rankshow">직급 표시</button>
+      <button class="btn" id="b-certshow" title="AICA 등 자격 취득자를 이름 옆에 표시합니다">자격 표시</button>
       <button class="btn" id="b-present" title="도구와 오른쪽 칸을 숨기고 조직도만 크게 봅니다 (Esc로 끝내기)">회의 보기</button>
       <button class="btn on" id="b-moves" title="비교 기준안과 소속이 다른 사람을 ↔로 표시합니다">이동자 표시</button>
       <button class="btn" id="b-cmp">비교 표시</button>
@@ -230,6 +233,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <button class="btn" id="b-ppl" title="직원별 직급·년차·생년·입사일·근속을 표로 봅니다">인원표</button>
       <button class="btn" id="b-xlsx" title="지금 보고 있는 조직안을 엑셀 파일로 내려받습니다">엑셀 저장</button>
       <button class="btn" id="b-hr">인사정보 넣기</button>
+      <button class="btn" id="b-cert" title="자격 취득 현황을 붙여 넣어 사람별 자격을 등록합니다">자격 넣기</button>
       <button class="btn primary" id="b-pub" hidden>경영진 공개</button>
       <button class="btn" id="b-theme" type="button"></button><button class="btn" id="b-logout" hidden>로그아웃</button>
     </div>
@@ -289,7 +293,7 @@ const RANKS = ["대표이사","상무","이사","수석","책임","선임","사�
 const FLAGS = [["promo","▲","승진"],["newlead","●","신규선임"],["review","■","승진심사대상"]];
 const LSKEY = "orgSandbox.v1", PREFKEY = "orgSandbox.pref";
 
-const S = {present:false, showRank:false, view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"diff", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
+const S = {present:false, showRank:false, showCert:false, view:false, preview:false, pub:null, pubOwn:null, noAccess:false, scen:{}, cur:null, base:null, sel:null, tab:"diff", showPeople:true, showMoves:true, compare:false, q:"", zoom:1, mode:"loading", readOnly:false};
 const hist = {};
 let col = null, downloads = null, firstSnap = true, pubRef = null, roSaved = false;
 const dirty = new Set(), saving = new Set(), timers = {};
@@ -302,10 +306,11 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 function lsGet(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } }
 function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 const pref = Object.assign({}, lsGet(PREFKEY) || {});
-function savePref(){ pref.cur = S.cur; pref.base = S.base; pref.showPeople = S.showPeople; (isNowScen(S.cur) ? 0 : (pref.showMoves = S.showMoves)); pref.showRank = S.showRank; pref.zoom = S.zoom; lsSet(PREFKEY, pref); }
+function savePref(){ pref.cur = S.cur; pref.base = S.base; pref.showPeople = S.showPeople; (isNowScen(S.cur) ? 0 : (pref.showMoves = S.showMoves)); pref.showRank = S.showRank; pref.showCert = S.showCert; pref.zoom = S.zoom; lsSet(PREFKEY, pref); }
 if (typeof pref.showPeople === "boolean") S.showPeople = pref.showPeople;
 if (typeof pref.showMoves === "boolean") S.showMoves = pref.showMoves;
 if (typeof pref.showRank === "boolean") S.showRank = pref.showRank;
+if (typeof pref.showCert === "boolean") S.showCert = pref.showCert;
 if (typeof pref.zoom === "number") S.zoom = pref.zoom;
 
 /* ---------- model helpers ---------- */
@@ -319,6 +324,17 @@ function subtree(d, id){ const out = [id]; for (let i = 0; i < out.length; i++) 
 function count(d, id){ const s = new Set(subtree(d, id)); let n = 0, v = 0; d.people.forEach(p => { if (s.has(p.unit)) { n++; if (p.vacant) v++; } }); return {n, v}; }
 function depth(d, u){ let k = 0, m = um(d); while (u && u.parent != null) { k++; u = m[u.parent]; } return k; }
 const TAGS = [["contract", "계약", "계약직", ""], ["leave", "휴직", "휴직", "lv"]];
+const certsOf = p => Array.isArray(p.certs) ? p.certs : [];
+const gLv = g => { const m = String(g).match(/^L(\d)$/); return m ? +m[1] : 0; };
+function certBadges(p){
+  const cs = certsOf(p); if (!cs.length || p.vacant) return [];
+  const ai = cs.filter(c => /AICA/i.test(c.n)).sort((a, b) => gLv(b.g) - gLv(a.g))[0], out = [];
+  if (ai) out.push({t: ai.g, c: gLv(ai.g) >= 4 ? "l4" : gLv(ai.g) === 3 ? "l3" : ""});
+  cs.filter(c => !/AICA/i.test(c.n)).forEach(c => out.push({t: c.g || c.n, c: "ot"}));
+  return out;
+}
+const certTxt = p => certsOf(p).slice().sort((a, b) => (b.d || "").localeCompare(a.d || "")).map(c => c.n + " " + c.g + (c.d ? "(" + fmtYmd(c.d) + ")" : "")).join(", ");
+const certShort = p => certBadges(p).map(b => b.t).join(" ");
 const isCt = p => (p.flags || []).includes("contract");
 const tagsOf = p => TAGS.filter(t => (p.flags || []).includes(t[0]));
 const tagTxt = (p, sep) => p.vacant ? "" : tagsOf(p).map(t => t[2]).join(sep || " ");
@@ -499,7 +515,7 @@ function renderHeader(){
   const vt = $("#vtitle"); vt.hidden = !(S.view || S.present);
   vt.innerHTML = S.view && S.pub ? esc(S.pub.name) + `<small>${fmtDate(S.pub.publishedAt)} 공개본 · 보기 전용</small>` : (S.present && S.scen[S.cur] ? esc(S.scen[S.cur].name) : "");
   $("#b-endpresent").hidden = !S.present; document.body.classList.toggle("present", S.present);
-  $("#b-rankshow").classList.toggle("on", S.showRank);
+  $("#b-rankshow").classList.toggle("on", S.showRank); $("#b-certshow").classList.toggle("on", S.showCert);
   $("#b-endprev").hidden = !(S.view && S.preview);
   document.body.classList.toggle("viewer", S.view);
   ["#sname","#b-dup","#b-del","#b-exp","#b-xlsx","#b-pub","#b-people","#b-moves","#b-cmp","#q"].forEach(s => $(s).disabled = !has);
@@ -538,10 +554,10 @@ function chipHtml(d, p, u, diff){
   const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
   const showBirth = !S.readOnly && !S.view;
-  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", tagTxt(p), from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
+  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", tagTxt(p), certsOf(p).length ? "자격: " + certTxt(p) : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
   const mv = !!from;
   const mk = marks(p).replace("↔", "");
-  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}${p.vacant ? "" : tagsOf(p).map(t => `<b class="ct ${t[3]}">${t[1]}</b>`).join("")}</span>`;
+  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}${p.vacant ? "" : tagsOf(p).map(t => `<b class="ct ${t[3]}">${t[1]}</b>`).join("")}${S.showCert ? certBadges(p).map(b => `<b class="cf ${b.c}">${esc(b.t)}</b>`).join("") : ""}</span>`;
 }
 function unitHtml(d, u, lv, diff){
   const {n, v} = count(d, u.id);
@@ -884,6 +900,8 @@ function handleAct(act, el){
     case "do-import": doImport(); break;
     case "hr-preview": hrPreview(); break;
     case "hr-apply": hrApply(); break;
+    case "cert-preview": certPreview(); break;
+    case "cert-apply": certApply(); break;
     case "pub-do": publishCurrent(!!($("#m-pubdiff") && $("#m-pubdiff").checked)); break;
     case "pub-preview": startPreview(); break;
     case "pub-stop": if (!arm(el, "pubstop", "한 번 더 누르면 공개 중지")) return; pubRef.delete().then(() => { S.pubOwn = null; $("#modal-root").innerHTML = ""; toast("공개를 중지했습니다. 경영진 화면은 빈 화면이 됩니다."); }, () => toast("공개를 중지하지 못했습니다.")); break;
@@ -1019,10 +1037,10 @@ async function exportXlsx(){
   const showBirth = !S.readOnly && !S.view, prev = S.pt; S.pt = {k: "org", dir: 1, q: ""};
   const pr = pplSorted(d); S.pt = prev;
   const heads = new Set(d.units.map(u => u.headId).filter(Boolean));
-  const pHead = ["상위조직", "소속", "이름", "직급", "년차", "직무", "조직장"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "표시"]);
-  const pRows = pr.map(r => [r.top, r.unit, r.name, r.rank, r.ry ?? "", r.job, heads.has(r.p.id) ? "○" : ""].concat(showBirth ? [r.birth ?? "", r.age ?? ""] : []).concat([fmtYmd(r.hired), r.ten, r.mk]));
-  const vac = d.people.filter(p => p.vacant).map(p => [p.unit ? pplTop(d, p.unit) : "미배치", unitName(d, p.unit), "채용예정", p.rank || "", "", p.job || "", ""].concat(showBirth ? ["", ""] : []).concat(["", "", ""]));
-  X.utils.book_append_sheet(wb, sheet(`구성원 — ${nm} · ${pr.length}명${vac.length ? " + 채용예정 " + vac.length + "명" : ""}`, pHead, pRows.concat(vac), [14, 16, 10, 8, 7, 14, 7].concat(showBirth ? [7, 7] : []).concat([12, 12, 8]), (i, c) => [4, 6].includes(c) || (showBirth && (c === 7 || c === 8)) ? N : C), "구성원");
+  const pHead = ["상위조직", "소속", "이름", "직급", "년차", "직무", "조직장"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "자격", "표시"]);
+  const pRows = pr.map(r => [r.top, r.unit, r.name, r.rank, r.ry ?? "", r.job, heads.has(r.p.id) ? "○" : ""].concat(showBirth ? [r.birth ?? "", r.age ?? ""] : []).concat([fmtYmd(r.hired), r.ten, certTxt(r.p), r.mk]));
+  const vac = d.people.filter(p => p.vacant).map(p => [p.unit ? pplTop(d, p.unit) : "미배치", unitName(d, p.unit), "채용예정", p.rank || "", "", p.job || "", ""].concat(showBirth ? ["", ""] : []).concat(["", "", "", ""]));
+  X.utils.book_append_sheet(wb, sheet(`구성원 — ${nm} · ${pr.length}명${vac.length ? " + 채용예정 " + vac.length + "명" : ""}`, pHead, pRows.concat(vac), [14, 16, 10, 8, 7, 14, 7].concat(showBirth ? [7, 7] : []).concat([12, 12, 24, 8]), (i, c) => [4, 6].includes(c) || (showBirth && (c === 7 || c === 8)) ? N : C), "구성원");
   // 3) 변경사항
   const df = diffNow();
   if (df){
@@ -1050,10 +1068,10 @@ function pplRows(d){
   return d.people.filter(p => !p.vacant).map(p => {
     const m = String(p.hired || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); const mo = m ? Math.max(0, (new Date().getFullYear() - +m[1]) * 12 + (new Date().getMonth() - (+m[2] - 1)) - (new Date().getDate() < +m[3] ? 1 : 0)) : null;
     return {p, name: p.name, top: p.unit ? (top[p.unit] || "") : "미배치", unit: unitName(d, p.unit), org: p.unit ? (ord[p.unit] ?? 999) : 1000, rank: p.rank || "", rk: RANK_ORDER.indexOf(p.rank), ry: p.rankYears ? +p.rankYears : null, job: p.job || "",
-      birth: showBirth && p.birth ? +p.birth : null, age: showBirth && p.birth ? yr - +p.birth : null, hired: p.hired || "", mo, ten: p.hired ? tenure(p.hired) : "", mk: (marks(p).replace("↔", "") + " " + tagTxt(p)).trim()};
+      birth: showBirth && p.birth ? +p.birth : null, age: showBirth && p.birth ? yr - +p.birth : null, hired: p.hired || "", mo, ten: p.hired ? tenure(p.hired) : "", cert: certShort(p), mk: (marks(p).replace("↔", "") + " " + tagTxt(p)).trim()};
   });
 }
-const PPL_COLS = [["org", "소속"], ["name", "이름"], ["rank", "직급"], ["ry", "년차", 1], ["job", "직무"], ["birth", "생년", 1, 1], ["age", "나이", 1, 1], ["hired", "입사일"], ["mo", "근속", 1], ["mk", "표시"]];
+const PPL_COLS = [["org", "소속"], ["name", "이름"], ["rank", "직급"], ["ry", "년차", 1], ["job", "직무"], ["birth", "생년", 1, 1], ["age", "나이", 1, 1], ["hired", "입사일"], ["mo", "근속", 1], ["cert", "자격"], ["mk", "표시"]];
 function pplSorted(d){
   const st = S.pt, q = st.q.replace(/\s/g, ""), rows = pplRows(d).filter(r => !q || (r.name + r.unit + r.top + r.rank + r.job).replace(/\s/g, "").includes(q));
   const key = r => st.k === "org" ? r.org : st.k === "rank" ? -r.rk : st.k === "hired" ? (r.hired || "9999") : r[st.k];
@@ -1074,8 +1092,8 @@ function renderPpl(){
 }
 function pplTsv(){
   const d = D(); const showBirth = !S.readOnly && !S.view, rows = pplSorted(d);
-  const head = ["상위조직", "소속", "이름", "직급", "년차", "직무"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "표시"]);
-  return [head.join("\t")].concat(rows.map(r => [r.top, r.unit, r.name, r.rank, r.ry ?? "", r.job].concat(showBirth ? [r.birth ?? "", r.age ?? ""] : []).concat([fmtYmd(r.hired), r.ten, r.mk]).join("\t"))).join("\n");
+  const head = ["상위조직", "소속", "이름", "직급", "년차", "직무"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "자격", "표시"]);
+  return [head.join("\t")].concat(rows.map(r => [r.top, r.unit, r.name, r.rank, r.ry ?? "", r.job].concat(showBirth ? [r.birth ?? "", r.age ?? ""] : []).concat([fmtYmd(r.hired), r.ten, r.cert, r.mk]).join("\t"))).join("\n");
 }
 function copy(text, msg){
   const done = () => toast(msg);
@@ -1131,6 +1149,8 @@ $("#b-dup").onclick = () => { const s = S.scen[S.cur]; if (s) { addScenario(s.na
 $("#b-new").onclick = () => addScenario("새 조직안", blankData());
 $("#b-del").onclick = e => { if (!S.scen[S.cur]) return; if (!arm(e.target, "sdel", "한 번 더 누르면 삭제")) return; const n = S.scen[S.cur].name; deleteScenario(S.cur); toast("‘" + n + "’ 안을 삭제했습니다."); };
 $("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
+$("#b-certshow").onclick = () => { S.showCert = !S.showCert; savePref(); render({keepPanel:true}); };
+$("#b-cert").onclick = openCert;
 $("#b-rankshow").onclick = () => { S.showRank = !S.showRank; savePref(); render({keepPanel:true}); };
 function setPresent(on){ S.present = on; if (on) { S.sel = null; try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {} } else { try { document.fullscreenElement && document.exitFullscreen(); } catch (e) {} } render({}); }
 $("#b-present").onclick = () => setPresent(true);
@@ -1273,6 +1293,67 @@ function hrPreview(){
    <div class="tblwrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>이름</th><th>직급(입력값)</th><th>생년</th><th>입사일</th><th>근속</th></tr></thead><tbody>
    ${list.filter(x => matched.has(x.key)).map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.rank ? x.rank + (x.years ? " " + x.years + "년차" : "") : "-")}</td><td>${esc(x.birth || "-")}</td><td>${esc(x.hired ? fmtYmd(x.hired) : "-")}</td><td>${esc(x.hired ? tenure(x.hired) : "-")}</td></tr>`).join("")}</tbody></table></div>`;
   $("#m-hr-go").disabled = !n;
+}
+/* ---------- 자격 넣기 ---------- */
+let certPlan = null;
+function openCert(){
+  if (!D() || S.readOnly) return;
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(820px,100%)"><b>자격 넣기</b>
+  <p class="muted mini" style="margin:0">자격 취득 현황 화면을 <b>표 전체 그대로 복사</b>해 붙여 넣으세요. 여러 쪽이면 이어 붙여도 됩니다. 사람마다 붙여 넣은 목록으로 자격이 바뀌고, 모든 안에 같이 들어갑니다.</p>
+  <textarea id="m-cert" placeholder="자격명 / 등급 · 자격증번호 · 부서명 · 이름 · 취득일 …"></textarea>
+  <div id="m-cert-out"></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">닫기</button><button class="btn" data-act="cert-preview">미리보기</button><button class="btn primary" data-act="cert-apply" id="m-cert-go" disabled>적용</button></div></div></div>`;
+  setTimeout(() => $("#m-cert").focus(), 0);
+}
+function parseCert(text){
+  const tk = String(text || "").split(/[\t\r\n]+/).map(s => s.trim()).filter(Boolean), out = [];
+  tk.forEach((t, i) => {
+    if (!/^(제\s*)?[A-Z0-9]+-[A-Z0-9]+-\d+(호)?$/i.test(t) || i < 2) return;
+    const g = tk[i - 1], n = tk[i - 2] === "New" ? tk[i - 3] : tk[i - 2], dept = tk[i + 2] || "", name = tk[i + 3] || "";
+    const dm = String(tk[i + 4] || "").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+    if (!name || !n || !g) return;
+    out.push({n, g, no: t, dept, name, d: dm ? dm[1] + "-" + dm[2].padStart(2, "0") + "-" + dm[3].padStart(2, "0") : ""});
+  });
+  return out;
+}
+const baseName = n => nkey(n).replace(/[A-Za-z]$/, "");
+const dnorm = s => String(s || "").replace(/\s/g, "").replace(/(팀|파트|part|실|부|공장)$/i, "");
+function unitChain(d, uid){ const m = um(d), out = []; let u = m[uid]; while (u) { out.push(dnorm(u.name)); u = m[u.parent]; } return out.filter(Boolean); }
+function deptScore(d, p, dept){ const ch = unitChain(d, p.unit), ts = String(dept).split(/\s+/).map(dnorm).filter(x => x.length >= 2); let s = 0; ch.forEach((c, i) => { if (c.length >= 2 && ts.some(t => c.includes(t) || t.includes(c))) s = Math.max(s, i === 0 ? 2 : 1); }); return s; }
+function certPreview(){
+  const list = parseCert($("#m-cert").value), d = D();
+  if (!list.length) { $("#m-cert-out").innerHTML = `<p class="mini" style="color:var(--accent)">자격 줄을 찾지 못했습니다. 자격증번호(예: ATEC-AIU-26001)가 들어간 표를 그대로 붙여 넣어 주세요.</p>`; $("#m-cert-go").disabled = true; return; }
+  const by = {}; list.forEach(c => { const k = baseName(c.name) + "|" + c.name; (by[k] = by[k] || {name: c.name, depts: [], certs: []}); if (!by[k].certs.some(x => x.no === c.no)) by[k].certs.push({n: c.n, g: c.g, no: c.no, d: c.d}); by[k].depts.push(c.dept); });
+  const rows = [], miss = [];
+  Object.values(by).forEach(g => {
+    const cand = d.people.filter(p => !p.vacant && baseName(p.name) === baseName(g.name));
+    if (!cand.length) { miss.push(g.name); return; }
+    const sc = cand.map(p => Math.max(...g.depts.map(x => deptScore(d, p, x)))), top = Math.max(...sc), hit = top > 0 ? cand.filter((p, i) => sc[i] === top) : [];
+    const pick = hit.length === 1 ? hit[0] : cand.length === 1 ? cand[0] : null;
+    if (!pick) { cand.forEach(p => rows.push({g, p, ok: false, note: "동명이인"})); return; }
+    rows.push({g, p: pick, ok: hit.includes(pick), note: hit.includes(pick) ? "" : "부서 다름"});
+  });
+  certPlan = {rows};
+  const lv = {}; rows.filter(r => r.ok).forEach(r => { const b = certBadges({certs: r.g.certs})[0]; if (b) lv[b.t] = (lv[b.t] || 0) + 1; });
+  $("#m-cert-out").innerHTML = `<p class="mini"><b>자격 ${list.length}건 · ${Object.keys(by).length}명</b> · 조직도와 맞춘 사람 ${rows.filter(r => r.ok).length}명 ${Object.entries(lv).sort().map(([k, v]) => `<span class="muted">${esc(k)} ${v}</span>`).join(" ")}${miss.length ? ` · <span style="color:var(--accent)">조직도에 없는 이름 ${miss.length}명: ${esc(miss.join(", "))}</span>` : ""}</p>
+  <div class="tblwrap" style="max-height:42vh;overflow:auto"><table class="ppl-tbl"><thead><tr><th>적용</th><th>이름</th><th>자격</th><th>자격증 부서</th><th>조직도 소속</th><th></th></tr></thead><tbody>${rows.map((r, i) => `<tr><td><input type="checkbox" data-ci="${i}"${r.ok ? " checked" : ""}></td><td>${esc(r.p.name)}</td><td>${esc(r.g.certs.map(c => c.n + " " + c.g).join(", "))}</td><td class="muted">${esc([...new Set(r.g.depts)].join(", "))}</td><td>${esc(unitName(d, r.p.unit))}</td><td style="color:var(--accent)">${r.note ? esc(r.note) + " — 맞으면 체크" : ""}</td></tr>`).join("")}</tbody></table></div>`;
+  $("#m-cert-go").disabled = false;
+}
+function certApply(){
+  if (!certPlan || S.readOnly) return;
+  const chosen = certPlan.rows.filter((r, i) => { const c = document.querySelector(`[data-ci="${i}"]`); return c && c.checked; });
+  if (!chosen.length) { toast("체크된 사람이 없습니다."); return; }
+  let n = 0;
+  scenList().forEach(([sid, sc]) => {
+    const h = H(sid); h.u.push(JSON.stringify(sc.data)); if (h.u.length > 80) h.u.shift(); h.r = []; h.key = null;
+    chosen.forEach(r => {
+      let p = sc.data.people.find(x => x.id === r.p.id);
+      if (!p) { const c = sc.data.people.filter(x => !x.vacant && nkey(x.name) === nkey(r.p.name)); p = c.length === 1 ? c[0] : null; }
+      if (p) { p.certs = r.g.certs.map(c => Object.assign({}, c)); n++; }
+    });
+    markDirty(sid);
+  });
+  certPlan = null; $("#modal-root").innerHTML = ""; S.showCert = true; savePref(); render({}); toast(chosen.length + "명의 자격을 넣었습니다. ‘자격 표시’로 켜고 끌 수 있습니다.");
 }
 function hrApply(){
   if (!hrPlan || S.readOnly) return;
