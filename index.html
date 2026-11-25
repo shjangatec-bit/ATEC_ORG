@@ -582,7 +582,7 @@ function chipHtml(d, p, u, diff){
   const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
   const showBirth = !S.readOnly && !S.view;
-  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", tagTxt(p), certsOf(p).length ? "자격: " + certTxt(p) : "", canEval() && evTxt(p) ? "평가: " + evTxt(p) : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
+  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + ((+d.year || new Date().getFullYear()) - +p.birth) + "세)" : "", tagTxt(p), certsOf(p).length ? "자격: " + certTxt(p) : "", canEval() && evTxt(p) ? "평가: " + evTxt(p) : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
   const mv = !!from;
   const mk = marks(p).replace("↔", "");
   return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}${p.vacant ? "" : tagsOf(p).map(t => `<b class="ct ${t[3]}">${t[1]}</b>`).join("")}${S.showEval && canEval() && !p.vacant && evShort(d, p) ? `<b class="ev g${esc(evLast(p))}">${esc(evShort(d, p))}</b>` : ""}${S.showCert ? certBadges(p).map(b => `<b class="cf ${b.c}">${esc(b.t)}</b>`).join("") : ""}</span>`;
@@ -1096,7 +1096,7 @@ function pplRows(d){
   const ord = {}, top = {}; let i = 0; const r = rootOf(d);
   const walk = (id, t) => { kids(d, id).forEach(u => { ord[u.id] = i++; top[u.id] = t || u.name; walk(u.id, t || u.name); }); };
   ord[r.id] = -1; top[r.id] = "대표이사"; walk(r.id, null);
-  const yr = new Date().getFullYear(), showBirth = !S.readOnly && !S.view;
+  const yr = +d.year || new Date().getFullYear(), showBirth = !S.readOnly && !S.view;
   return d.people.filter(p => !p.vacant).map(p => {
     const m = String(p.hired || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); const mo = m ? Math.max(0, (new Date().getFullYear() - +m[1]) * 12 + (new Date().getMonth() - (+m[2] - 1)) - (new Date().getDate() < +m[3] ? 1 : 0)) : null;
     return {p, name: p.name, top: p.unit ? (top[p.unit] || "") : "미배치", unit: unitName(d, p.unit), org: p.unit ? (ord[p.unit] ?? 999) : 1000, rank: p.rank || "", rk: RANK_ORDER.indexOf(p.rank), ry: p.rankYears ? +p.rankYears : null, job: p.job || "",
@@ -1119,7 +1119,7 @@ function renderPpl(){
     <span class="row"><input id="ppl-q" placeholder="이름·조직·직급 찾기" value="${esc(st.q)}" style="width:200px" autocomplete="off"><button class="btn" data-act="ppl-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
     <div class="tblwrap" style="overflow:auto;max-height:70vh"><table class="ppl-tbl"><thead><tr><th class="num">#</th>${cols.map(c => `<th class="${c[2] ? "num" : ""}${st.k === c[0] ? " on" : ""}" data-act="ppl-sort" data-k="${c[0]}">${c[1]}${st.k === c[0] ? (st.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead>
     <tbody>${rows.map((r, i) => `<tr><td class="num muted">${i + 1}</td>${cols.map(c => `<td class="${c[2] ? "num" : ""}">${cell(r, c[0])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length + 1}" class="muted">맞는 사람이 없습니다</td></tr>`}</tbody></table></div>
-    <p class="muted mini" style="margin:0">제목을 누르면 정렬됩니다 · 나이는 올해 − 생년 · 근속은 오늘 기준</p></div></div>`;
+    <p class="muted mini" style="margin:0">제목을 누르면 정렬됩니다 · 나이는 기준연도 − 생년 · 근속은 오늘 기준</p></div></div>`;
   if (wasFocus) { const q = $("#ppl-q"); q.focus(); try { q.setSelectionRange(pos, pos); } catch (e) {} }
 }
 function pplTsv(){
