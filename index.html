@@ -21,14 +21,14 @@
   --bg:#11141a; --surface:#1a1f28; --surface2:#151920; --ink:#e6e9ef; --muted:#9aa3b3; --line:#3d4555; --line2:#2a303c;
   --band:#34436a; --band-ink:#ffffff; --band-sub:#c3cce0;
   --accent:#ff4f8e; --accent-soft:#3b1828; --accent-ink:#1a0710;
-  --chg:#f0b041; --chg-soft:#3a2c10; --out:#9aa3b3;
+  --lv:#7fb2ea; --chg:#f0b041; --chg-soft:#3a2c10; --out:#9aa3b3;
   --j-sales:#7aa2ff; --j-office:#a3abbd; --j-rnd:#4fd1c0; --j-tech:#f0b041;
   --ok:#5ad39a; --warn:#f6a35b; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#11141a; --surface:#1a1f28; --surface2:#151920; --ink:#e6e9ef; --muted:#9aa3b3; --line:#3d4555; --line2:#2a303c;
   --band:#34436a; --band-ink:#ffffff; --band-sub:#c3cce0;
   --accent:#ff4f8e; --accent-soft:#3b1828; --accent-ink:#1a0710;
-  --chg:#f0b041; --chg-soft:#3a2c10; --out:#9aa3b3;
+  --lv:#7fb2ea; --chg:#f0b041; --chg-soft:#3a2c10; --out:#9aa3b3;
   --j-sales:#7aa2ff; --j-office:#a3abbd; --j-rnd:#4fd1c0; --j-tech:#f0b041;
   --ok:#5ad39a; --warn:#f6a35b; color-scheme:dark}
 html,body{height:100%}
@@ -121,6 +121,7 @@ body.present .canvas{height:auto}
 .chip.sel{outline:2px solid var(--accent);outline-offset:1px}
 .mk{font-size:10px;color:var(--accent)}
 .ct{font-size:9.5px;font-weight:700;color:var(--chg);border:1px solid var(--chg);border-radius:3px;padding:0 2px;margin-left:3px;line-height:1.2}
+.ct.lv{color:var(--lv,#2f6fb0);border-color:var(--lv,#2f6fb0)}
 .chip.hit .ct{color:inherit;border-color:currentColor}
 .chip.mv{border-color:var(--chg);background:var(--chg-soft)}
 .chip.vac,.chip.vac.mv,.chip.vac.head{border:1.5px dashed var(--muted);background:transparent;color:var(--muted)}
@@ -247,6 +248,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <span class="lg"><b class="mk">●</b>신규선임</span>
       <span class="lg lg-review"><b class="mk">■</b>승진심사대상</span>
       <span class="lg"><b class="ct" style="margin:0 3px 0 0">계약</b>계약직</span>
+      <span class="lg"><b class="ct lv" style="margin:0 3px 0 0">휴직</b>휴직</span>
       <span class="lg"><b class="mvk">↔</b>부서이동</span>
     </span>
   </div>
@@ -316,7 +318,10 @@ const inUnit = (d, id) => d.people.filter(p => p.unit === id);
 function subtree(d, id){ const out = [id]; for (let i = 0; i < out.length; i++) d.units.forEach(u => { if (u.parent === out[i]) out.push(u.id); }); return out; }
 function count(d, id){ const s = new Set(subtree(d, id)); let n = 0, v = 0; d.people.forEach(p => { if (s.has(p.unit)) { n++; if (p.vacant) v++; } }); return {n, v}; }
 function depth(d, u){ let k = 0, m = um(d); while (u && u.parent != null) { k++; u = m[u.parent]; } return k; }
+const TAGS = [["contract", "계약", "계약직", ""], ["leave", "휴직", "휴직", "lv"]];
 const isCt = p => (p.flags || []).includes("contract");
+const tagsOf = p => TAGS.filter(t => (p.flags || []).includes(t[0]));
+const tagTxt = (p, sep) => p.vacant ? "" : tagsOf(p).map(t => t[2]).join(sep || " ");
 function marks(p){ return FLAGS.filter(f => (p.flags||[]).includes(f[0])).map(f => f[1]).join(""); }
 function pname(p){ return p.vacant ? "채용예정" + (p.rank ? "(" + p.rank + ")" : "") : p.name; }
 function headLabel(d, u){
@@ -533,10 +538,10 @@ function chipHtml(d, p, u, diff){
   const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
   const showBirth = !S.readOnly && !S.view;
-  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", isCt(p) ? "계약직" : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
+  const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + (new Date().getFullYear() - +p.birth) + "세)" : "", tagTxt(p), from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
   const mv = !!from;
   const mk = marks(p).replace("↔", "");
-  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}${isCt(p) && !p.vacant ? `<b class="ct">계약</b>` : ""}</span>`;
+  return `<span class="${cls}${mv && !from ? " mv" : ""}" data-pid="${esc(p.id)}" draggable="${!S.readOnly}" title="${esc(tip)}">${mv ? `<b class="mvk">↔</b>` : ""}${mk ? `<b class="mk">${mk}</b>` : ""}${S.showRank && p.rank && !p.vacant ? `<span class="rk">${esc(p.rank)}</span>` : ""}${esc(pname(p))}${p.vacant ? "" : tagsOf(p).map(t => `<b class="ct ${t[3]}">${t[1]}</b>`).join("")}</span>`;
 }
 function unitHtml(d, u, lv, diff){
   const {n, v} = count(d, u.id);
@@ -663,7 +668,7 @@ function personPane(d, p){
   <div class="fld"><label for="f-pjob2">직군</label><select id="f-pjob2">${JOBS.map(j => `<option${j === p.job ? " selected" : ""}>${j}</option>`).join("")}</select></div>
   <div class="fld"><label for="f-punit">소속</label><select id="f-punit">${unitOptions(d, [], p.unit, true)}</select></div>
   ${(() => { const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null; const b = B && linkPeople(B, d).c2b[p.id]; if (!B) return ""; if (!b) return `<p class="mvlist muted">‘${esc(S.scen[S.base].name)}’에는 없는 인원입니다.</p>`; return b.unit === p.unit ? "" : `<p class="mvlist"><b>↔ 부서이동</b> · ${esc(unitName(B, b.unit))} → ${esc(unitName(d, p.unit))} <span class="muted">(‘${esc(S.scen[S.base].name)}’ 대비)</span></p>`; })()}
-  <div class="fld"><label>표시</label><div class="checks">${FLAGS.map(f => `<label><input type="checkbox" data-flag="${f[0]}"${p.flags.includes(f[0]) ? " checked" : ""}>${f[1]} ${f[2]}</label>`).join("")}<label><input type="checkbox" data-flag="contract"${isCt(p) ? " checked" : ""}>계약직</label><label><input type="checkbox" id="f-pvac"${p.vacant ? " checked" : ""}>채용예정</label></div></div>
+  <div class="fld"><label>표시</label><div class="checks">${FLAGS.map(f => `<label><input type="checkbox" data-flag="${f[0]}"${p.flags.includes(f[0]) ? " checked" : ""}>${f[1]} ${f[2]}</label>`).join("")}${TAGS.map(t => `<label><input type="checkbox" data-flag="${t[0]}"${(p.flags || []).includes(t[0]) ? " checked" : ""}>${t[2]}</label>`).join("")}<label><input type="checkbox" id="f-pvac"${p.vacant ? " checked" : ""}>채용예정</label></div></div>
   <div class="fld"><label for="f-pnote">메모</label><input id="f-pnote" value="${esc(p.note)}"></div>
   <h4>조직장</h4>
   <p class="mini">${headOf.length ? headOf.map(x => esc(x.name)).join(", ") + " 조직장" : `<span class="muted">맡은 조직 없음</span>`}</p>
@@ -924,7 +929,7 @@ function xlsxOrgRows(d){
   (function walk(u, dep){
     max = Math.max(max, dep);
     const c = count(d, u.id), own = inUnit(d, u.id).slice().sort((a, b) => (b.id === u.headId) - (a.id === u.headId) || RANK_ORDER.indexOf(b.rank) - RANK_ORDER.indexOf(a.rank));
-    out.push({dep, name: u.name, head: headLabel(d, u), n: c.n, v: c.v, own: own.length, st: effStatus(u) || "", mem: own.map(p => (p.rank && !p.vacant ? p.rank + " " : "") + pname(p) + (isCt(p) && !p.vacant ? "(계약)" : "")).join(", ")});
+    out.push({dep, name: u.name, head: headLabel(d, u), n: c.n, v: c.v, own: own.length, st: effStatus(u) || "", mem: own.map(p => (p.rank && !p.vacant ? p.rank + " " : "") + pname(p) + (tagsOf(p).length && !p.vacant ? "(" + tagsOf(p).map(t => t[1]).join("·") + ")" : "")).join(", ")});
     kids(d, u.id).forEach(k => walk(k, dep + 1));
   })(r, 0);
   const free = d.people.filter(p => !p.unit);
@@ -950,7 +955,7 @@ function xlsxChart(X, d, title){
     for (let i = 0; i < own.length; i += 2){
       const last = i + 2 >= own.length;
       [0, 1].forEach(k => { const p = own[i + k], mk = p ? marks(p).replace("↔", "") : "";
-        set(r, c + k, p ? (mk ? mk + " " : "") + (p.vacant ? pname(p) : p.name + (isCt(p) ? " (계약)" : "")) : "", {font: font({bold: p && p.id === u.headId, italic: p && p.vacant, color: {rgb: p && p.vacant ? "C4004B" : "1F2430"}}), alignment: {vertical: "center", indent: 1}, border: edge(r, c + k, last)}); });
+        set(r, c + k, p ? (mk ? mk + " " : "") + (p.vacant ? pname(p) : p.name + (tagsOf(p).length ? " (" + tagsOf(p).map(t => t[1]).join("·") + ")" : "")) : "", {font: font({bold: p && p.id === u.headId, italic: p && p.vacant, color: {rgb: p && p.vacant ? "C4004B" : "1F2430"}}), alignment: {vertical: "center", indent: 1}, border: edge(r, c + k, last)}); });
       r++;
     }
     return r;
@@ -1045,7 +1050,7 @@ function pplRows(d){
   return d.people.filter(p => !p.vacant).map(p => {
     const m = String(p.hired || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); const mo = m ? Math.max(0, (new Date().getFullYear() - +m[1]) * 12 + (new Date().getMonth() - (+m[2] - 1)) - (new Date().getDate() < +m[3] ? 1 : 0)) : null;
     return {p, name: p.name, top: p.unit ? (top[p.unit] || "") : "미배치", unit: unitName(d, p.unit), org: p.unit ? (ord[p.unit] ?? 999) : 1000, rank: p.rank || "", rk: RANK_ORDER.indexOf(p.rank), ry: p.rankYears ? +p.rankYears : null, job: p.job || "",
-      birth: showBirth && p.birth ? +p.birth : null, age: showBirth && p.birth ? yr - +p.birth : null, hired: p.hired || "", mo, ten: p.hired ? tenure(p.hired) : "", mk: (marks(p).replace("↔", "") + (isCt(p) ? " 계약직" : "")).trim()};
+      birth: showBirth && p.birth ? +p.birth : null, age: showBirth && p.birth ? yr - +p.birth : null, hired: p.hired || "", mo, ten: p.hired ? tenure(p.hired) : "", mk: (marks(p).replace("↔", "") + " " + tagTxt(p)).trim()};
   });
 }
 const PPL_COLS = [["org", "소속"], ["name", "이름"], ["rank", "직급"], ["ry", "년차", 1], ["job", "직무"], ["birth", "생년", 1, 1], ["age", "나이", 1, 1], ["hired", "입사일"], ["mo", "근속", 1], ["mk", "표시"]];
