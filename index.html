@@ -67,7 +67,7 @@ select,input[type=text],input:not([type]),textarea{border:1px solid var(--line);
 main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px}
 .rk{font-size:10.5px;color:var(--muted);margin-right:2px}
 .chip.hit .rk{color:inherit}
-body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-cert,body.present #b-ev,body.present #b-ppl,body.present #b-xlsx,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
+body.present #scen,body.present #sname,body.present #b-dup,body.present #b-new,body.present #b-del,body.present #b-exp,body.present #b-imp,body.present #b-hr,body.present #b-cert,body.present #b-ev,body.present #b-promo,body.present #b-ppl,body.present #b-xlsx,body.present #b-hc,body.present #b-pub,body.present #b-logout,body.present #b-present,body.present #q,body.present .sep,body.present #status,body.present .strip .btn,body.present aside,body.present #tray{display:none!important}
 body.present main{grid-template-columns:minmax(0,1fr)}
 body.present .canvas{height:auto}
 .comp td.n,.comp th.n{min-width:30px}
@@ -135,7 +135,7 @@ body.present .canvas{height:auto}
 .mvlist b{color:var(--chg)}
 body.viewer #scen,body.viewer #sname,body.viewer #b-dup,body.viewer #b-new,body.viewer #b-del,body.viewer #b-undo,body.viewer #b-redo,body.viewer #b-exp,body.viewer #b-imp,body.viewer #b-pub,body.viewer .sep,body.viewer #tray,body.viewer .tab[data-tab="edit"]{display:none}
 #vtitle{font-weight:600;font-size:14px}
-body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-hr,body.ro #b-cert,body.ro #b-ev,body.ro #b-evshow,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
+body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-hr,body.ro #b-cert,body.ro #b-ev,body.ro #b-promo,body.ro #b-evshow,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
 body.viewer .lg-review{display:none}
 #vtitle small{font-weight:400;color:var(--muted);margin-left:8px;font-size:12px}
 .pubinfo{background:var(--surface2);border-radius:6px;padding:8px 10px;font-size:12.5px}
@@ -236,6 +236,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <button class="btn" id="b-ppl" title="직원별 직급·년차·생년·입사일·근속을 표로 봅니다">인원표</button>
       <button class="btn" id="b-xlsx" title="지금 보고 있는 조직안을 엑셀 파일로 내려받습니다">엑셀 저장</button>
       <button class="btn" id="b-hr">인사정보 넣기</button>
+      <button class="btn" id="b-promo" title="승진 기준(직급 연차·최근 3년 평가·AICA)으로 이 안의 승진 대상자를 봅니다">승진 대상</button>
       <button class="btn" id="b-ev" title="연도별 인사평가 결과를 붙여 넣어 등록합니다">평가 넣기</button>
       <button class="btn" id="b-cert" title="자격 취득 현황을 붙여 넣어 사람별 자격을 등록합니다">자격 넣기</button>
       <button class="btn primary" id="b-pub" hidden>경영진 공개</button>
@@ -914,6 +915,8 @@ function handleAct(act, el){
     case "hr-apply": hrApply(); break;
     case "cert-preview": certPreview(); break;
     case "ev-preview": evPreview(); break;
+    case "pr-copy": copy(promoTsv(), "승진 대상 표를 복사했습니다. 엑셀에 붙여 넣으세요."); break;
+    case "pr-mark": { const ids = promoRows(D(), S.scen[S.cur].name).filter(r => r.ok).map(r => r.p.id); mutate(d => { d.people.forEach(p => { if (ids.includes(p.id)) p.flags = [...new Set([...(p.flags || []), "review"])]; }); return ids.length + "명에게 ■ 승진심사대상 표시를 했습니다."; }); renderPromo(); break; }
     case "ev-apply": evApply(); break;
     case "cert-apply": certApply(); break;
     case "pub-do": publishCurrent(!!($("#m-pubdiff") && $("#m-pubdiff").checked)); break;
@@ -1143,6 +1146,7 @@ document.addEventListener("change", e => {
   const t = e.target, id = t.id, d = D();
   if (id === "scen") { S.cur = t.value; S.sel = null; { const nb = nowBaseId(S.cur), pre = scPre(S.cur); if (nb && nb !== S.cur) S.base = nb; else { const o = scenList().find(([id]) => id !== S.cur && scPre(id) === pre); if (o) S.base = o[0]; } } if (S.base === S.cur) S.base = null; savePref(); render({}); return; }
   if (id === "f-base") { S.base = t.value; savePref(); render({}); return; }
+  if (id === "pr-only") { S.pr.only = t.checked; renderPromo(); return; }
   if (!d || !S.sel) return;
   const u = S.sel.k === "u" ? d.units.find(x => x.id === S.sel.id) : null;
   const p = S.sel.k === "p" ? d.people.find(x => x.id === S.sel.id) : null;
@@ -1165,6 +1169,7 @@ $("#b-del").onclick = e => { if (!S.scen[S.cur]) return; if (!arm(e.target, "sde
 $("#b-undo").onclick = undo; $("#b-redo").onclick = redo;
 $("#b-evshow").onclick = () => { S.showEval = !S.showEval; savePref(); render({keepPanel:true}); };
 $("#b-ev").onclick = openEval;
+$("#b-promo").onclick = () => { S.pr = S.pr || {only: false}; renderPromo(); };
 $("#b-certshow").onclick = () => { S.showCert = !S.showCert; savePref(); render({keepPanel:true}); };
 $("#b-cert").onclick = openCert;
 $("#b-rankshow").onclick = () => { S.showRank = !S.showRank; savePref(); render({keepPanel:true}); };
@@ -1309,6 +1314,41 @@ function hrPreview(){
    <div class="tblwrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>이름</th><th>직급(입력값)</th><th>생년</th><th>입사일</th><th>근속</th></tr></thead><tbody>
    ${list.filter(x => matched.has(x.key)).map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.rank ? x.rank + (x.years ? " " + x.years + "년차" : "") : "-")}</td><td>${esc(x.birth || "-")}</td><td>${esc(x.hired ? fmtYmd(x.hired) : "-")}</td><td>${esc(x.hired ? tenure(x.hired) : "-")}</td></tr>`).join("")}</tbody></table></div>`;
   $("#m-hr-go").disabled = !n;
+}
+/* ---------- 승진 대상 ---------- */
+const PROMO = [{from: "책임", to: "수석", years: 10, aica: 3}, {from: "선임", to: "책임", years: 8, aica: 2}, {from: "사원", to: "선임", years: 9, aica: 0}];
+const EV_PT = {S: 5, A: 4, B: 3, C: 2, D: 1};
+function scenYear(name){ const m = String(name || "").match(/(?:20)?(\d{2})\s*년/); return m ? 2000 + +m[1] : new Date().getFullYear(); }
+function promoRows(d, name){
+  const y = scenYear(name), evY = [y - 3, y - 2, y - 1].map(String), out = [];
+  d.people.forEach(p => {
+    if (p.vacant) return; const r = PROMO.find(x => x.from === (p.rank || "").trim()); if (!r) return;
+    const ry = +p.rankYears || 0, e = evOf(p), gs = evY.filter(k => e[k]).map(k => ({y: k, g: e[k]}));
+    const pts = gs.map(x => EV_PT[x.g[0]]).filter(Boolean), avg = pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : null;
+    const ai = Math.max(0, ...certsOf(p).filter(c => /AICA/i.test(c.n)).map(c => gLv(c.g)));
+    const okY = ry >= r.years, okE = avg != null && avg >= 3, okA = ai >= r.aica, miss = [];
+    if (!okY) miss.push(`연차 ${r.years - ry}년 부족`); if (avg == null) miss.push("평가 없음"); else if (!okE) miss.push("평가 B 미만"); if (!okA) miss.push(`AICA L${r.aica} 필요`);
+    out.push({p, r, ry, gs, avg, ai, okY, okE, okA, ok: okY && okE && okA, near: okY && !(okE && okA), miss, evY});
+  });
+  return out.sort((a, b) => (b.ok - a.ok) || (b.near - a.near) || PROMO.indexOf(a.r) - PROMO.indexOf(b.r) || b.ry - a.ry);
+}
+function renderPromo(){
+  const d = D(); if (!d || !canEval()) return; const nm = S.scen[S.cur].name, y = scenYear(nm), all = promoRows(d, nm), st = S.pr;
+  const rows = all.filter(r => st.only ? (r.ok || r.near) : true), nOk = all.filter(r => r.ok).length, nNear = all.filter(r => r.near).length;
+  const avgTxt = r => r.avg == null ? `<span class="muted">없음</span>` : (Math.round(r.avg * 100) / 100).toFixed(2) + ` <span class="muted mini">(${r.gs.map(g => g.g).join("·")})</span>`;
+  const ck = ok => ok ? `<span style="color:#2e7d4f;font-weight:700">○</span>` : `<span style="color:var(--accent);font-weight:700">×</span>`;
+  $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(1080px,100%);max-height:92%">
+  <div class="row" style="justify-content:space-between;align-items:center"><b>${y}년 승진 대상자 <span class="muted mini">‘${esc(nm)}’ 기준 · 대상 ${nOk}명 · 연차는 됐지만 요건 미달 ${nNear}명</span></b>
+  <span class="row"><label class="mini"><input type="checkbox" id="pr-only"${st.only ? " checked" : ""}> 연차 충족자만</label><button class="btn" data-act="pr-mark"${nOk ? "" : " disabled"}>대상자에 ■ 표시</button><button class="btn" data-act="pr-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
+  <p class="muted mini" style="margin:4px 0">기준: 사원→선임 사원 9년차 · 선임→책임 선임 8년차 + AICA L2 · 책임→수석 책임 10년차 + AICA L3 · 공통 최근 3년(${y - 3}~${y - 1}년) 평가 평균 B 이상 (S5·A4·B3·C2·D1점, 있는 해만 평균) · 수석→임원은 발탁이라 제외</p>
+  <div class="tblwrap" style="overflow:auto;max-height:66vh"><table class="ppl-tbl"><thead><tr><th>결과</th><th>이름</th><th>소속</th><th>현재</th><th>승진</th><th class="num">연차</th><th>평가 평균</th><th>AICA</th><th>부족한 요건</th></tr></thead><tbody>
+  ${rows.map(r => `<tr${r.ok ? ` style="background:var(--accent-soft)"` : ""}><td><b>${r.ok ? "대상" : r.near ? "요건 미달" : "-"}</b></td><td>${esc(r.p.name)}</td><td>${esc(unitName(d, r.p.unit))}</td><td>${esc(r.p.rank)} ${r.ry}년차</td><td>${esc(r.r.to)}</td><td class="num">${ck(r.okY)}</td><td>${ck(r.okE)} ${avgTxt(r)}</td><td>${r.r.aica ? ck(r.okA) + " " + (r.ai ? "L" + r.ai : `<span class="muted">없음</span>`) : `<span class="muted">해당 없음</span>`}</td><td class="mini">${esc(r.miss.join(", "))}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">해당하는 사람이 없습니다</td></tr>`}
+  </tbody></table></div>
+  <p class="muted mini" style="margin:0">직급 연차는 이 안에 적힌 값 기준입니다(27년 안은 27년 연차). 평가·자격은 ‘평가 넣기’, ‘자격 넣기’로 넣은 값을 씁니다.</p></div></div>`;
+}
+function promoTsv(){
+  const d = D(), nm = S.scen[S.cur].name, rows = promoRows(d, nm).filter(r => S.pr.only ? (r.ok || r.near) : true);
+  return [["결과", "이름", "소속", "현재 직급", "연차", "승진 직급", "연차 충족", "평가 평균", "평가", "AICA", "부족한 요건"].join("\t")].concat(rows.map(r => [r.ok ? "대상" : r.near ? "요건 미달" : "-", r.p.name, unitName(d, r.p.unit), r.p.rank, r.ry, r.r.to, r.okY ? "○" : "×", r.avg == null ? "" : r.avg.toFixed(2), r.gs.map(g => g.y + " " + g.g).join(", "), r.ai ? "L" + r.ai : "", r.miss.join(", ")].join("\t"))).join("\n");
 }
 /* ---------- 평가 넣기 ---------- */
 let evPlan = null;
