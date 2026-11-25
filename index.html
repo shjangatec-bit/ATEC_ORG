@@ -1306,7 +1306,7 @@ function openCert(){
   setTimeout(() => $("#m-cert").focus(), 0);
 }
 function parseCert(text){
-  const tk = String(text || "").split(/[\t\r\n]+/).map(s => s.trim()).filter(Boolean), out = [];
+  const tk = String(text || "").replace(/\u00a0/g, " ").split(/[\t\r\n]+| {2,}/).map(s => s.trim()).filter(Boolean), out = [];
   tk.forEach((t, i) => {
     if (!/^(제\s*)?[A-Z0-9]+-[A-Z0-9]+-\d+(호)?$/i.test(t) || i < 2) return;
     const g = tk[i - 1], n = tk[i - 2] === "New" ? tk[i - 3] : tk[i - 2], dept = tk[i + 2] || "", name = tk[i + 3] || "";
