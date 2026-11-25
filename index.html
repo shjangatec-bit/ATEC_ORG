@@ -351,7 +351,8 @@ const evTxt = p => Object.keys(evOf(p)).sort().map(y => y + " " + evOf(p)[y]).jo
 const isCt = p => (p.flags || []).includes("contract");
 const tagsOf = p => TAGS.filter(t => (p.flags || []).includes(t[0]));
 const tagTxt = (p, sep) => p.vacant ? "" : tagsOf(p).map(t => t[2]).join(sep || " ");
-function marks(p){ return FLAGS.filter(f => (p.flags||[]).includes(f[0])).map(f => f[1]).join(""); }
+function autoReview(p){ if (p.vacant || !canEval()) return false; const r = PROMO.find(x => x.from === (p.rank || "").trim()); return !!r && (+p.rankYears || 0) >= r.years; }
+function marks(p){ return FLAGS.filter(f => (p.flags||[]).includes(f[0]) || (f[0] === "review" && autoReview(p))).map(f => f[1]).join(""); }
 function pname(p){ return p.vacant ? "채용예정" + (p.rank ? "(" + p.rank + ")" : "") : p.name; }
 function headLabel(d, u){
   if (u.headId){
@@ -697,7 +698,7 @@ function personPane(d, p){
   <div class="fld"><label for="f-pjob2">직군</label><select id="f-pjob2">${JOBS.map(j => `<option${j === p.job ? " selected" : ""}>${j}</option>`).join("")}</select></div>
   <div class="fld"><label for="f-punit">소속</label><select id="f-punit">${unitOptions(d, [], p.unit, true)}</select></div>
   ${(() => { const B = S.scen[S.base] && S.base !== S.cur ? S.scen[S.base].data : null; const b = B && linkPeople(B, d).c2b[p.id]; if (!B) return ""; if (!b) return `<p class="mvlist muted">‘${esc(S.scen[S.base].name)}’에는 없는 인원입니다.</p>`; return b.unit === p.unit ? "" : `<p class="mvlist"><b>↔ 부서이동</b> · ${esc(unitName(B, b.unit))} → ${esc(unitName(d, p.unit))} <span class="muted">(‘${esc(S.scen[S.base].name)}’ 대비)</span></p>`; })()}
-  <div class="fld"><label>표시</label><div class="checks">${FLAGS.map(f => `<label><input type="checkbox" data-flag="${f[0]}"${p.flags.includes(f[0]) ? " checked" : ""}>${f[1]} ${f[2]}</label>`).join("")}${TAGS.map(t => `<label><input type="checkbox" data-flag="${t[0]}"${(p.flags || []).includes(t[0]) ? " checked" : ""}>${t[2]}</label>`).join("")}<label><input type="checkbox" id="f-pvac"${p.vacant ? " checked" : ""}>채용예정</label></div></div>
+  <div class="fld"><label>표시</label><div class="checks">${FLAGS.map(f => f[0] === "review" && autoReview(p) ? `<label title="직급 연차가 승진년한에 해당해 자동 표시됩니다"><input type="checkbox" checked disabled>${f[1]} ${f[2]} <span class="muted mini">(연차 자동)</span></label>` : `<label><input type="checkbox" data-flag="${f[0]}"${p.flags.includes(f[0]) ? " checked" : ""}>${f[1]} ${f[2]}</label>`).join("")}${TAGS.map(t => `<label><input type="checkbox" data-flag="${t[0]}"${(p.flags || []).includes(t[0]) ? " checked" : ""}>${t[2]}</label>`).join("")}<label><input type="checkbox" id="f-pvac"${p.vacant ? " checked" : ""}>채용예정</label></div></div>
   <div class="fld"><label for="f-pnote">메모</label><input id="f-pnote" value="${esc(p.note)}"></div>
   <h4>조직장</h4>
   <p class="mini">${headOf.length ? headOf.map(x => esc(x.name)).join(", ") + " 조직장" : `<span class="muted">맡은 조직 없음</span>`}</p>
@@ -1339,7 +1340,7 @@ function renderPromo(){
   const yo = [1, 2, 3, 4, 5].map(k => y0 + k).map(v => `<option value="${v}"${v === Y ? " selected" : ""}>${v}년 승진</option>`).join("");
   $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(1040px,100%);max-height:92%">
   <div class="row" style="justify-content:space-between;align-items:center"><b><select id="pr-y" style="font-weight:700">${yo}</select> 대상자 <span class="muted mini">(${W}년 말 심사) · ‘${esc(nm)}’ 기준 · ${nOk}명 (새로 대상 ${nNew}명)</span></b>
-  <span class="row"><label class="mini"><input type="checkbox" id="pr-all"${st.all ? " checked" : ""}> 연차 안 된 사람도 보기</label><button class="btn" data-act="pr-mark"${nOk && Y === y0 + 1 ? "" : " disabled"} title="${Y === y0 + 1 ? "" : (y0 + 1) + "년 승진을 볼 때만 쓸 수 있습니다"}">대상자에 ■ 표시</button><button class="btn" data-act="pr-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
+  <span class="row"><label class="mini"><input type="checkbox" id="pr-all"${st.all ? " checked" : ""}> 연차 안 된 사람도 보기</label><button class="btn" data-act="pr-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
   <p class="muted mini" style="margin:4px 0">직급 연차만으로 판단합니다: ${W}년 한 해를 사원 9년차 · 선임 8년차 · 책임 10년차 이상으로 근무하면 ${Y}년 승진 대상 (수석→임원은 발탁이라 제외). ${W > y0 ? `${W}년 연차는 이 안(${y0}년)의 연차에 ${W - y0}을 더해 계산했습니다(그 사이 승진 없다고 가정).` : ""} 평가·AICA는 참고로만 보여 줍니다.${noY ? ` <span style="color:var(--accent)">직급 연차가 비어 있는 ${noY}명은 판단하지 못했습니다.</span>` : ""}</p>
   <div class="tblwrap" style="overflow:auto;max-height:66vh"><table class="ppl-tbl"><thead><tr><th>결과</th><th>이름</th><th>소속</th><th>현재</th><th>승진</th><th class="num">${W}년 연차</th><th>처음 승진 대상</th><th>최근 3년 평가 <span class="muted">(참고)</span></th><th>AICA <span class="muted">(참고)</span></th></tr></thead><tbody>
   ${rows.map(r => `<tr${r.ok ? ` style="background:var(--accent-soft)"` : ""}><td><b>${r.ok ? "대상" : r.noYears ? "연차 없음" : "-"}</b></td><td>${esc(r.p.name)}</td><td>${esc(unitName(d, r.p.unit))}</td><td>${esc(r.p.rank)} ${r.ry0 ? r.ry0 + "년차" : ""}</td><td>${esc(r.r.to)}</td><td class="num">${r.ry0 ? r.ry + "년차" : ""}</td><td>${r.noYears ? "" : r.first + "년 승진" + (r.ok && r.first < Y ? ` <span class="muted mini">(이월)</span>` : "")}</td><td>${avgTxt(r)}</td><td>${r.ai ? "L" + r.ai : `<span class="muted">없음</span>`}${r.r.aica ? ` <span class="muted mini">(기준 L${r.r.aica})</span>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">해당하는 사람이 없습니다</td></tr>`}
