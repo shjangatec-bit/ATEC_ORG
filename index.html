@@ -111,7 +111,8 @@ body.present .canvas{height:auto}
 .dtag{position:absolute;top:-9px;right:6px;font-size:10.5px;font-weight:700;padding:0 6px;border-radius:9px;line-height:17px;z-index:1}
 .dtag-new{background:var(--accent);color:var(--accent-ink)} .dtag-chg{background:var(--chg);color:#fff}
 .chips{display:flex;flex-wrap:wrap;gap:3px;padding:6px 7px 7px}
-.chip{display:inline-flex;align-items:center;gap:3px;font-size:12px;padding:1px 6px 1px 5px;border-radius:4px;background:var(--surface2);border:1px solid var(--line2);cursor:grab;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:3px;font-size:12px;padding:1px 6px 1px 5px;border-radius:4px;background:var(--surface2);border:1px solid var(--line2);cursor:grab;white-space:nowrap;flex-wrap:wrap;row-gap:1px;max-width:100%;box-sizing:border-box;min-width:0}
+.chips{min-width:0}.u-top,.u-head{min-width:0;overflow-wrap:anywhere}
 .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--jc,var(--muted));flex:none}
 .chip.j-s{--jc:var(--j-sales)} .chip.j-o{--jc:var(--j-office)} .chip.j-r{--jc:var(--j-rnd)} .chip.j-t{--jc:var(--j-tech)}
 .chip.head{font-weight:700;border-color:var(--line)}
