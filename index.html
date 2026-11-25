@@ -261,7 +261,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <span class="lg lg-review"><b class="mk">■</b>승진심사대상</span>
       <span class="lg"><b class="ct" style="margin:0 3px 0 0">계약</b>계약직</span>
       <span class="lg"><b class="ct lv" style="margin:0 3px 0 0">휴직</b>휴직</span>
-      <span class="lg lg-review"><b class="ct rt" style="margin:0 3px 0 0">정년</b>만 55세 되는 해(정년)</span>
+      <span class="lg lg-review"><b class="ct rt" style="margin:0 3px 0 0">정년</b>만 60세 되는 해(정년)</span>
       <span class="lg"><b class="mvk">↔</b>부서이동</span>
     </span>
   </div>
@@ -354,7 +354,7 @@ function evLast(p){ const e = evOf(p), ys = Object.keys(e).sort(); return ys.len
 const evTxt = p => Object.keys(evOf(p)).sort().map(y => y + " " + evOf(p)[y]).join(", ");
 const isCt = p => (p.flags || []).includes("contract");
 const tagsOf = p => TAGS.filter(t => (p.flags || []).includes(t[0]));
-const RETIRE_AGE = 55;
+const RETIRE_AGE = 60;
 function isRetire(d, p){ return !!(d && p && !p.vacant && p.birth && canEval() && (+d.year || new Date().getFullYear()) - +p.birth === RETIRE_AGE); }
 const tagTxt = (p, sep) => p.vacant ? "" : tagsOf(p).map(t => t[2]).join(sep || " ");
 function syncYears(d, name){
