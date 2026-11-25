@@ -1098,7 +1098,7 @@ function pplRows(d){
   ord[r.id] = -1; top[r.id] = "대표이사"; walk(r.id, null);
   const yr = +d.year || new Date().getFullYear(), showBirth = !S.readOnly && !S.view;
   return d.people.filter(p => !p.vacant).map(p => {
-    const m = String(p.hired || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); const mo = m ? Math.max(0, (new Date().getFullYear() - +m[1]) * 12 + (new Date().getMonth() - (+m[2] - 1)) - (new Date().getDate() < +m[3] ? 1 : 0)) : null;
+    const m = String(p.hired || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); const rd = refDate(), mo = m ? Math.max(0, (rd.getFullYear() - +m[1]) * 12 + (rd.getMonth() - (+m[2] - 1)) - (rd.getDate() < +m[3] ? 1 : 0)) : null;
     return {p, name: p.name, top: p.unit ? (top[p.unit] || "") : "미배치", unit: unitName(d, p.unit), org: p.unit ? (ord[p.unit] ?? 999) : 1000, rank: p.rank || "", rk: RANK_ORDER.indexOf(p.rank), ry: p.rankYears ? +p.rankYears : null, job: p.job || "",
       birth: showBirth && p.birth ? +p.birth : null, age: showBirth && p.birth ? yr - +p.birth : null, hired: p.hired || "", mo, ten: p.hired ? tenure(p.hired) : "", cert: certShort(p), ev: showBirth ? evShort(d, p) : "", mk: (marks(p).replace("↔", "") + " " + tagTxt(p)).trim()};
   });
@@ -1119,7 +1119,7 @@ function renderPpl(){
     <span class="row"><input id="ppl-q" placeholder="이름·조직·직급 찾기" value="${esc(st.q)}" style="width:200px" autocomplete="off"><button class="btn" data-act="ppl-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
     <div class="tblwrap" style="overflow:auto;max-height:70vh"><table class="ppl-tbl"><thead><tr><th class="num">#</th>${cols.map(c => `<th class="${c[2] ? "num" : ""}${st.k === c[0] ? " on" : ""}" data-act="ppl-sort" data-k="${c[0]}">${c[1]}${st.k === c[0] ? (st.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead>
     <tbody>${rows.map((r, i) => `<tr><td class="num muted">${i + 1}</td>${cols.map(c => `<td class="${c[2] ? "num" : ""}">${cell(r, c[0])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length + 1}" class="muted">맞는 사람이 없습니다</td></tr>`}</tbody></table></div>
-    <p class="muted mini" style="margin:0">제목을 누르면 정렬됩니다 · 나이는 기준연도 − 생년 · 근속은 오늘 기준</p></div></div>`;
+    <p class="muted mini" style="margin:0">제목을 누르면 정렬됩니다 · 나이는 기준연도 − 생년 · 근속은 기준연도의 오늘 날짜 기준</p></div></div>`;
   if (wasFocus) { const q = $("#ppl-q"); q.focus(); try { q.setSelectionRange(pos, pos); } catch (e) {} }
 }
 function pplTsv(){
@@ -1213,9 +1213,10 @@ $("#b-hr").onclick = openHR;
 $("#b-xlsx").onclick = exportXlsx;
 $("#b-ppl").onclick = () => { S.pt = S.pt || {k: "org", dir: 1, q: ""}; renderPpl(); };
 function fmtYmd(v){ const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? m[1] + "." + m[2] + "." + m[3] : String(v || ""); }
+function refDate(){ const t = new Date(), d = (typeof D === "function") && D(), y = d && +d.year || t.getFullYear(); return new Date(y, t.getMonth(), Math.min(t.getDate(), new Date(y, t.getMonth() + 1, 0).getDate())); }
 function tenure(v){
   const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return "-";
-  const a = new Date(+m[1], +m[2] - 1, +m[3]), b = new Date();
+  const a = new Date(+m[1], +m[2] - 1, +m[3]), b = refDate();
   let mo = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()); if (b.getDate() < a.getDate()) mo--;
   if (mo < 0) return "입사 전"; const y = Math.floor(mo / 12), r = mo % 12;
   return (y ? y + "년 " : "") + r + "개월";
