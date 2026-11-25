@@ -330,7 +330,7 @@ function certBadges(p){
   const cs = certsOf(p); if (!cs.length || p.vacant) return [];
   const ai = cs.filter(c => /AICA/i.test(c.n)).sort((a, b) => gLv(b.g) - gLv(a.g))[0], out = [];
   if (ai) out.push({t: ai.g, c: gLv(ai.g) >= 4 ? "l4" : gLv(ai.g) === 3 ? "l3" : ""});
-  cs.filter(c => !/AICA/i.test(c.n)).forEach(c => out.push({t: isSix(c.n) ? "6σ" : (c.g || c.n), c: "ot"}));
+  cs.filter(c => !/AICA/i.test(c.n)).forEach(c => out.push({t: (isSix(c.n) ? "6σ " : "") + (c.g || c.n), c: "ot"}));
   return out;
 }
 const isSix = n => /6\s*(σ|시그마|sigma)|식스\s*시그마|six\s*sigma/i.test(String(n || ""));
