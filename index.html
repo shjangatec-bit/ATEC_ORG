@@ -330,10 +330,11 @@ function certBadges(p){
   const cs = certsOf(p); if (!cs.length || p.vacant) return [];
   const ai = cs.filter(c => /AICA/i.test(c.n)).sort((a, b) => gLv(b.g) - gLv(a.g))[0], out = [];
   if (ai) out.push({t: ai.g, c: gLv(ai.g) >= 4 ? "l4" : gLv(ai.g) === 3 ? "l3" : ""});
-  cs.filter(c => !/AICA/i.test(c.n)).forEach(c => out.push({t: c.g || c.n, c: "ot"}));
+  cs.filter(c => !/AICA/i.test(c.n)).forEach(c => out.push({t: (isSix(c.n) ? "6σ " : "") + (c.g || c.n), c: "ot"}));
   return out;
 }
-const certTxt = p => certsOf(p).slice().sort((a, b) => (b.d || "").localeCompare(a.d || "")).map(c => c.n + " " + c.g + (c.d ? "(" + fmtYmd(c.d) + ")" : "")).join(", ");
+const isSix = n => /6\s*(σ|시그마|sigma)|식스\s*시그마|six\s*sigma/i.test(String(n || ""));
+const certTxt = p => certsOf(p).slice().sort((a, b) => (b.d || "").localeCompare(a.d || "")).map(c => (isSix(c.n) ? "식스시그마" : c.n) + " " + c.g + (c.d ? "(" + fmtYmd(c.d) + ")" : "")).join(", ");
 const certShort = p => certBadges(p).map(b => b.t).join(" ");
 const isCt = p => (p.flags || []).includes("contract");
 const tagsOf = p => TAGS.filter(t => (p.flags || []).includes(t[0]));
