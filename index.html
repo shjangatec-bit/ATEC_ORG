@@ -137,7 +137,7 @@ body.present .canvas{height:auto}
 .mvlist b{color:var(--chg)}
 body.viewer #scen,body.viewer #sname,body.viewer #syear-w,body.viewer #b-dup,body.viewer #b-new,body.viewer #b-del,body.viewer #b-undo,body.viewer #b-redo,body.viewer #b-exp,body.viewer #b-imp,body.viewer #b-pub,body.viewer .sep,body.viewer #tray,body.viewer .tab[data-tab="edit"]{display:none}
 #vtitle{font-weight:600;font-size:14px}
-body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-hr,body.ro #b-cert,body.ro #b-ev,body.ro #b-promo,body.ro #b-evshow,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
+body.ro #b-dup,body.ro #b-new,body.ro #b-del,body.ro #b-imp,body.ro #b-hr,body.ro #b-cert,body.ro #b-ev,body.ro #b-undo,body.ro #b-redo,body.ro #tray{display:none}
 body.viewer .lg-review{display:none}
 #vtitle small{font-weight:400;color:var(--muted);margin-left:8px;font-size:12px}
 .pubinfo{background:var(--surface2);border-radius:6px;padding:8px 10px;font-size:12.5px}
@@ -224,7 +224,7 @@ tr.l1 td{font-weight:700;background:var(--surface2)}
       <button class="btn" id="b-redo" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행">↷</button>
       <button class="btn on" id="b-people">인원 표시</button>
       <button class="btn" id="b-rankshow">직급 표시</button>
-      <button class="btn" id="b-evshow" title="인사평가 등급을 이름 옆에 표시합니다 (편집자만 보임)">평가 표시</button>
+      <button class="btn" id="b-evshow" title="인사평가 등급을 이름 옆에 표시합니다">평가 표시</button>
       <button class="btn" id="b-certshow" title="AICA 등 자격 취득자를 이름 옆에 표시합니다">자격 표시</button>
       <button class="btn" id="b-present" title="도구와 오른쪽 칸을 숨기고 조직도만 크게 봅니다 (Esc로 끝내기)">회의 보기</button>
       <button class="btn on" id="b-moves" title="비교 기준안과 소속이 다른 사람을 ↔로 표시합니다">이동자 표시</button>
@@ -346,7 +346,7 @@ function certBadges(p){
 const isSix = n => /6\s*(σ|시그마|sigma)|식스\s*시그마|six\s*sigma/i.test(String(n || ""));
 const certTxt = p => certsOf(p).slice().sort((a, b) => (b.d || "").localeCompare(a.d || "")).map(c => (isSix(c.n) ? "식스시그마" : c.n) + " " + c.g + (c.d ? "(" + fmtYmd(c.d) + ")" : "")).join(", ");
 const certShort = p => certBadges(p).map(b => b.t).join(" ");
-const canEval = () => !S.readOnly && !S.view;
+const canEval = () => !S.view;
 const evOf = p => (p.evals && typeof p.evals === "object") ? p.evals : {};
 function evYears(d){ const s = new Set(); d.people.forEach(p => Object.keys(evOf(p)).forEach(y => s.add(y))); return [...s].sort(); }
 function evShort(d, p){ const ys = evYears(d), e = evOf(p); if (!ys.length || !Object.keys(e).length) return ""; return ys.map(y => e[y] || "–").join("·"); }
@@ -585,7 +585,7 @@ function chipHtml(d, p, u, diff){
   const q = S.q.trim();
   const from = S.showMoves && diff && diff.from ? diff.from[p.id] : null;
   const cls = ["chip", JOBCLS[p.job] || "", p.vacant ? "vac" : "", isHead ? "head" : "", q && p.name.includes(q) ? "hit" : "", from ? "mv" : "", S.sel && S.sel.k === "p" && S.sel.id === p.id ? "sel" : ""].filter(Boolean).join(" ");
-  const showBirth = !S.readOnly && !S.view;
+  const showBirth = !S.view;
   const tip = [p.rank ? p.rank + (p.rankYears ? " " + p.rankYears + "년차" : "") : "", p.job, p.hired ? "입사 " + fmtYmd(p.hired) + " (근속 " + tenure(p.hired) + ")" : "", showBirth && p.birth ? p.birth + "년생(" + ((+d.year || new Date().getFullYear()) - +p.birth) + "세)" : "", tagTxt(p), isRetire(d, p) ? (+d.year) + "년 만 " + RETIRE_AGE + "세 정년" : "", certsOf(p).length ? "자격: " + certTxt(p) : "", canEval() && evTxt(p) ? "평가: " + evTxt(p) : "", from ? "이전 소속: " + from : "", p.note].filter(Boolean).join(" · ");
   const mv = !!from;
   const mk = marks(p).replace("↔", "");
@@ -1070,7 +1070,7 @@ async function exportXlsx(){
     return fill ? Object.assign({}, base, {fill}) : base;
   }), "조직 목록");
   // 2) 구성원
-  const showBirth = !S.readOnly && !S.view, prev = S.pt; S.pt = {k: "org", dir: 1, q: ""};
+  const showBirth = !S.view, prev = S.pt; S.pt = {k: "org", dir: 1, q: ""};
   const pr = pplSorted(d); S.pt = prev;
   const heads = new Set(d.units.map(u => u.headId).filter(Boolean));
   const pHead = ["상위조직", "소속", "이름", "직급", "년차", "직무", "조직장"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "자격"]).concat(showBirth ? ["평가"] : []).concat(["표시"]);
@@ -1100,7 +1100,7 @@ function pplRows(d){
   const ord = {}, top = {}; let i = 0; const r = rootOf(d);
   const walk = (id, t) => { kids(d, id).forEach(u => { ord[u.id] = i++; top[u.id] = t || u.name; walk(u.id, t || u.name); }); };
   ord[r.id] = -1; top[r.id] = "대표이사"; walk(r.id, null);
-  const yr = +d.year || new Date().getFullYear(), showBirth = !S.readOnly && !S.view;
+  const yr = +d.year || new Date().getFullYear(), showBirth = !S.view;
   return d.people.filter(p => !p.vacant).map(p => {
     const m = String(p.hired || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); const rd = refDate(), mo = m ? Math.max(0, (rd.getFullYear() - +m[1]) * 12 + (rd.getMonth() - (+m[2] - 1)) - (rd.getDate() < +m[3] ? 1 : 0)) : null;
     return {p, name: p.name, top: p.unit ? (top[p.unit] || "") : "미배치", unit: unitName(d, p.unit), org: p.unit ? (ord[p.unit] ?? 999) : 1000, rank: p.rank || "", rk: RANK_ORDER.indexOf(p.rank), ry: p.rankYears ? +p.rankYears : null, job: p.job || "",
@@ -1114,12 +1114,12 @@ function pplSorted(d){
   return rows.sort((a, b) => { const x = key(a), y = key(b); if (x == null && y == null) return a.org - b.org; if (x == null) return 1; if (y == null) return -1; return (x < y ? -1 : x > y ? 1 : (a.org - b.org) || (b.rk - a.rk)) * st.dir; });
 }
 function renderPpl(){
-  const d = D(); if (!d) return; const st = S.pt, showBirth = !S.readOnly && !S.view;
+  const d = D(); if (!d) return; const st = S.pt, showBirth = !S.view;
   const cols = PPL_COLS.filter(c => showBirth || !c[3]), rows = pplSorted(d);
   const cell = (r, k) => k === "org" ? `${esc(r.top)}${r.unit !== r.top ? ` <span class="muted">› ${esc(r.unit)}</span>` : ""}` : k === "ry" ? (r.ry != null ? r.ry + "년차" : "") : k === "hired" ? esc(fmtYmd(r.hired)) : k === "mo" ? esc(r.ten) : k === "age" ? (r.age != null ? r.age + "세" : "") : k === "birth" ? (r.birth ?? "") : esc(r[k] ?? "");
   const wasFocus = document.activeElement && document.activeElement.id === "ppl-q", pos = wasFocus ? document.activeElement.selectionStart : null;
   $("#modal-root").innerHTML = `<div class="modal"><div class="box" style="width:min(1180px,100%);max-height:92%">
-    <div class="row" style="justify-content:space-between;align-items:center"><b>인원표 <span class="muted mini">‘${esc(S.scen[S.cur].name)}’ · ${rows.length}명${showBirth ? "" : " · 생년·나이는 보기 전용 계정에 표시하지 않습니다"}</span></b>
+    <div class="row" style="justify-content:space-between;align-items:center"><b>인원표 <span class="muted mini">‘${esc(S.scen[S.cur].name)}’ · ${rows.length}명${showBirth ? "" : " · 생년·나이는 공개 화면에 표시하지 않습니다"}</span></b>
     <span class="row"><input id="ppl-q" placeholder="이름·조직·직급 찾기" value="${esc(st.q)}" style="width:200px" autocomplete="off"><button class="btn" data-act="ppl-copy">엑셀용 복사</button><button class="btn" data-act="close-modal">닫기</button></span></div>
     <div class="tblwrap" style="overflow:auto;max-height:70vh"><table class="ppl-tbl"><thead><tr><th class="num">#</th>${cols.map(c => `<th class="${c[2] ? "num" : ""}${st.k === c[0] ? " on" : ""}" data-act="ppl-sort" data-k="${c[0]}">${c[1]}${st.k === c[0] ? (st.dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("")}</tr></thead>
     <tbody>${rows.map((r, i) => `<tr><td class="num muted">${i + 1}</td>${cols.map(c => `<td class="${c[2] ? "num" : ""}">${cell(r, c[0])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length + 1}" class="muted">맞는 사람이 없습니다</td></tr>`}</tbody></table></div>
@@ -1127,7 +1127,7 @@ function renderPpl(){
   if (wasFocus) { const q = $("#ppl-q"); q.focus(); try { q.setSelectionRange(pos, pos); } catch (e) {} }
 }
 function pplTsv(){
-  const d = D(); const showBirth = !S.readOnly && !S.view, rows = pplSorted(d);
+  const d = D(); const showBirth = !S.view, rows = pplSorted(d);
   const head = ["상위조직", "소속", "이름", "직급", "년차", "직무"].concat(showBirth ? ["생년", "나이"] : []).concat(["입사일", "근속", "자격"]).concat(showBirth ? ["평가"] : []).concat(["표시"]);
   return [head.join("\t")].concat(rows.map(r => [r.top, r.unit, r.name, r.rank, r.ry ?? "", r.job].concat(showBirth ? [r.birth ?? "", r.age ?? ""] : []).concat([fmtYmd(r.hired), r.ten, r.cert]).concat(showBirth ? [r.ev ? evTxt(r.p) : ""] : []).concat([r.mk]).join("\t"))).join("\n");
 }
